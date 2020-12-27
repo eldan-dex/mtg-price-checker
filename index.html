@@ -1,0 +1,120 @@
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Magič Price Checker</title>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script src="mtg.js"></script>
+        <style>
+            body {
+                font-family: monospace;
+                margin: 0 auto;
+                background-color: #000000;
+                color :#dadada;
+            }
+            h2 {
+                margin-block-start: 0em;
+                margin-block-end: 0.1em;
+            }
+            table thead {
+                font-weight: bold;
+            }
+            table, th, td {
+                border: 1px solid rgb(65, 65, 65);
+                border-collapse: collapse;
+                padding: 5px;
+            }
+            .footer {
+                width: 100%;
+                position: fixed;
+                bottom: 1px;
+            }
+            .value {
+                text-align: right;
+            }
+            .name {
+                text-align: left;
+            }
+            .center {
+                text-align: center;
+            }
+            .stockOk {
+                color: green;
+            }
+            .stockLow {
+                color: orange;
+            }
+            .stockEmpty {
+                color: red;
+            }
+            .split {
+                height: 90%;
+                z-index: 1;
+                position: fixed;
+
+                overflow-x: hidden;
+
+            }
+            .left {
+                width: 30%;
+                left: 5%;
+            }
+            .right {
+                width: 60%;
+                right: 5%;
+            }
+            .list {
+                width: 70%;
+                height: 70%;
+            }
+            .button {
+                margin-top: 5px;
+            }
+        </style>
+    </head>
+
+    <body link="#ffa000">
+        <h1 class="center">MTG Price Checker</h1><hr>
+
+        <div class="center split left">
+            <h2>Seznam karet</h2>
+            Jedna karta na řádek, pouze názvy<br>
+            <textarea class="list" id="card_list"></textarea><br>
+            <button class="button" id="submit" onclick="checkPrices()">Zjistit ceny</button>
+        </div>
+
+        <div class="split right">
+            <h2>Tabulka cen</h2>
+            Note: Příliš mnoho požadavků může zahltit servery eshopů a přestanou odpovídat (projeví se to tak, že v konzoli budou vidět chyby 429 - Too Many Requests). Stačí pár minut počkat a zkusit to znovu.
+            Note: Najáda zatím nefunguje, pracuju na tom.<br>
+            <br>
+            Zobrazuje cenu nejlevnější karty která odpovídá zadání, N/A pokud není nalezena nebo není skladem<br>
+            Počty skladem: <span class="stockOk">4+ ks</span>, <span class="stockLow">1-3 ks</span>, <span class="stockEmpty">0 ks</span><br>
+            <table id="result_table">
+                <thead>
+                    <tr>
+                        <td>Jméno karty</td>
+                        <td>Rytíř</td>
+                        <!--<td>Rytíř Kusy</td>-->
+                        <td>Najáda</td>
+                        <!--<td>Najáda Kusy</td>-->
+                        <td>Lotus</td>
+                        <!--<td>Lotus Kusy</td>-->
+                        <td>Rishada</td>
+                        <!--<td>Rishada Kusy</td>-->
+                        <td>Obchod s nejlepší cenou</td>
+                        <td>Nejlepší cena</td>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table><br>
+            Zpracováno <span id="doneCounter">0/0</span><br><br>
+            <button class="button" id="table_force" onclick="tryFinalizeTable(true)">Vyhodnotit manuálně</button> Tabulka bude automaticky vyhodnocena po načtení všech hodnot. Tlačítko vyhodnotí tabulku předčasně.<br>
+        </div>
+
+        <div class="footer center">
+            <hr>
+            v0.3 (c) dex 2020
+        </div>
+
+    </body>
+</html>
