@@ -1,5 +1,15 @@
+//v0.5, (c) dex 2020
 var GlobalCards;
 var GlobalQueryResults;
+var GlobalRequestsSent;
+var GlobalRequestsReceived;
+var GlobalStores;
+var GlobalStoreSums;
+
+class Settings
+{
+    static badWords = ["emblem", "oversized", "art series"];
+}
 
 class Store
 {
@@ -10,8 +20,7 @@ class Store
         this.url = url;
         this.proxy = "https://cors-anywhere.herokuapp.com/"; //TODO: Find a proxy with higher allowed throughput
         this.cellId = shortName + "Price";
-        this.requestsSent = 0;
-        this.requestsCompleted = 0;
+        this.sumId = shortName + "Sum";
     }
 
     //Executes upon an AJAX request succeeding
@@ -22,19 +31,32 @@ class Store
         {
             var html = $.parseHTML(result);
             var cardData = this.parseReply(html, cardName);
+            var filteredStock = [];
             if (cardData == undefined)
                 console.log("parseReply (" + this.name + ", " + cardName + "): invalid response!"); //This will fall through to the N/A result
+            else
+            {
+                //Remove cards with incorrect names
+                var filteredNames = cardData.filter(function f(val) { return filterCorrectName(val.name, cardName, Settings.badWords);});
 
-            //Remove cards not in stock
-            var filteredData = cardData.filter(filterInStock);
+                //Log all incorrect finds to console
+                let diff = cardData.filter(x => !filteredNames.includes(x));
+                diff.forEach(x => console.log(this.name + ": " + x.name + " is not " + cardName));
+
+                //Remove cards not in stock
+                filteredStock = filteredNames.filter(filterInStock);
+            }
 
             //If there is no data, fill N/A into the relevant cell and return
-            if (filteredData.length == 0)
+            if (filteredStock.length == 0)
+            {
                 fillCell(rowId, this.cellId, "N/A", "stockEmpty");
+                GlobalStoreSums.get(this.name).hasAll = false;
+            }
             else
             {
                 //Sort results by price, ascending
-                var sortedData = filteredData.sort(sortByPrice);
+                var sortedData = filteredStock.sort(sortByPrice);
 
                 //Add to global results
                 GlobalQueryResults[rowId].push([this.name, sortedData]);
@@ -42,7 +64,9 @@ class Store
                 //Display the best price with the proper highlight
                 var count = sortedData[0]['count'];
                 var cellClass = count > 3 ? "stockOk" : (count > 0 ? "stockLow" : "stockEmpty");
-                fillCell(rowId, this.cellId, sortedData[0]['price'], cellClass);
+                var price = sortedData[0]['price']
+                fillCell(rowId, this.cellId, price, cellClass);
+                GlobalStoreSums.get(this.name).sum += price;
             }
         }
         catch (e)
@@ -65,10 +89,10 @@ class Store
     //Completes a query request and finalizes the table if this was the last one
     completeRequest()
     {
-        ++this.requestsCompleted;
-        updateCounter(requestsCompleted, requestsSent);
+        ++GlobalRequestsCompleted;
+        updateCounter(GlobalRequestsCompleted, GlobalRequestsSent);
 
-        if (this.requestsCompleted >= this.requestsSent)
+        if (GlobalRequestsCompleted >= GlobalRequestsSent)
             finalizeTable();
     }
 
@@ -80,7 +104,7 @@ class Store
         var failFunc = function f() { thisClass.ajaxFail(rowId); };
 
         //Increment request counter BEFORE requests are sent, so that an immediate resolve has no chance of accidentally triggering table finalization
-        ++this.requestsSent; 
+        ++GlobalRequestsSent; 
 
         if (this.queryMethod == "post")
             $.post(this.proxy + this.url, this.createQuery(cardName), successFunc).fail(failFunc);
@@ -128,14 +152,7 @@ class Rytir extends Store
             try
             {
                 var tt = $(trlist[i++]);
-                var name = tt.find('font')[0].innerText;
-                if (!isCardCorrect(name, cardName))
-                {
-                    console.log(this.name + ": " + name + " is not " + cardName);
-                    i += 2;
-                    continue;
-                }
-        
+                var name = tt.find('font')[0].innerText;        
                 i++;
                 var tds = $(trlist[i++]).find('td');
                 var count = parseInt($(tds[1]).find('font')[0].innerText.split(' ')[0]);
@@ -176,16 +193,18 @@ class Najada extends Store
             return undefined;
 
         var results = [];
+        var prevName = "";
         for(var i = 1; i < trlist.length; ++i)
         {
             try
             {
                 var name = $(trlist[i]).find('.tdTitle')[0].innerText.trim();
-                if (!isCardCorrect(name, cardName))
-                {
-                    console.log(this.name + ": " + name + " is not " + cardName);
-                    continue;
-                }
+
+                 //Use previous name if next entry is nameless
+                if (name == "")
+                    name = prevName;
+                else
+                    prevName = name;
 
                 var priceCount = $(trlist[i]).find('.tdPrice')[0].innerText.trim().split(' ');
                 var price = parseInt(priceCount[0]);
@@ -225,23 +244,21 @@ class Lotus extends Store
         if (lists == undefined || divs == undefined || divs.length == 0)
             return undefined;
 
-        results = [];
+        var results = [];
         for(var i = 0; i < divs.length; ++i)
         {
             try
             {
                 var name = $(divs[i]).find('h2')[0].innerText;
-                if (!isCardCorrect(name, cardName))
-                {
-                    console.log(this.name + ": " + name + " is not " + cardName);
-                    continue;
-                }
-
                 var prices = $(divs[i]).find('.prices');
                 var dds = $(prices[0]).find('dd');
-                var count = $(dds[0]).find('.stock_quantity')[0].innerText.split(' ')[0];
-                count = parseInt(count.substring(1, count.length));
-                var priceStr = $(prices[1]).find('.cenasdph')[0].innerText.split(' ')[0].replace('/,/g', '.');
+                var count = 0;
+                if ($(dds[0]).find('.stock_quantity').length > 0)
+                {
+                    count = $(dds[0]).find('.stock_quantity')[0].innerText.split(' ')[0];
+                    count = parseInt(count.substring(1, count.length));
+                }
+                var priceStr = $(prices[1]).find('.cenasdph')[0].innerText.split('K')[0].replace(/,/g, '.').replace(/\s/g, '');
                 var price = Math.ceil(parseFloat(priceStr));
                 results.push({name, count, price});
             }
@@ -278,19 +295,13 @@ class Rishada extends Store
         if (tables == undefined || trs == undefined || trs.length == 0)
             return undefined;
 
-        results = [];
+        var results = [];
         for(var i = 1; i < trs.length; ++i)
         {
             try
             {
                 var tds = $(trs[i]).find('td');
                 var name = $(tds[0]).find('a')[0].innerText;
-                if (!isCardCorrect(name, cardName))
-                {
-                    console.log(this.name + ": " + name + " is not " + cardName);
-                    continue;
-                }
-
                 var price = parseInt(tds[5].innerText.split(' ')[0]);
                 var count = parseInt(tds[6].innerText.split(' ')[0]);
                 results.push({name, count, price});
@@ -341,24 +352,26 @@ function createTableWithCards(cards)
     }
 }
 
-function createSumRow(sum)
+function createSumRow()
 {
     var contents =  "<tr id=\"row_sum\">";
-        contents += "<td  class=\"name\" id=\"sumname\"><b>Celkem</b></td>";
-        contents += "<td class=\"value\"></id>";
-        contents += "<td class=\"value\"></id>";
-        contents += "<td class=\"value\"></id>";
-        contents += "<td class=\"value\"></id>";
+        contents += "<td class=\"name\" id=\"sumname\"><b>Celkem</b></td>";
+        contents += "<td class=\"value\" id=\"crSum\"></id>";
+        contents += "<td class=\"value\" id=\"njSum\"></id>";
+        contents += "<td class=\"value\" id=\"blSum\"></id>";
+        contents += "<td class=\"value\" id=\"riSum\"></id>";
         contents += "<td class=\"name\"></id>";
-        contents += "<td class=\"value\" id=\"bestSum\"><b>" + sum + "</b></id>";
+        contents += "<td class=\"value\" id=\"bestSum\"><b></b></id>";
         contents += "</tr>";
     $("#result_table > tbody").append(contents);
+    $("#sum_legend").css("display", "block");
 }
 
 //Clears the table except for the header
 function clearTable()
 {
     $("#result_table > tbody:last").children().remove();
+    $("#sum_legend").css("display", "none");
 }
 
 //Sorts objects by 'price' in ascending order
@@ -376,16 +389,25 @@ function filterInStock(obj)
 }
 
  //Check whether the name matches while ignoring nonalphanumeric characters
-function isCardCorrect(suspectedCard, cardName)
+function filterCorrectName(suspectedCard, cardName, badWords)
 {
     var sus = suspectedCard.replace(/\W/g, '').toLowerCase();
     var corr = cardName.replace(/\W/g, '').toLowerCase();
+
     if (!sus.includes(corr))
         return false;
 
+    //Check for bad words
     var tmp = sus.replace(corr, "").trim();
-    if (tmp.includes("emblem") || tmp.includes("oversized"))
-        return false;
+    for (var i = 0; i < badWords.length; ++i)
+    {
+        var badWord = badWords[i].replace(/\W/g, '').toLowerCase().trim();
+        if (tmp.includes(badWord))
+        {
+            console.log(suspectedCard + " is not " + cardName);
+            return false;
+        }
+    }
 
     return true;
 }
@@ -394,29 +416,35 @@ function isCardCorrect(suspectedCard, cardName)
 function checkPrices()
 {
     //Clear old results
-    requestsSent = 0;
-    requestsCompleted = 0;
+    GlobalRequestsSent = 0;
+    GlobalRequestsCompleted = 0;
     GlobalQueryResults = [];
     clearTable();
 
-    //Initialize data
-    var stores = [new Rytir(), new Najada(), new Lotus(), new Rishada()];
+    //Initialize stores and store totals
+    GlobalStores = [new Rytir(), new Najada(), new Lotus(), new Rishada()];
+    GlobalStoreSums = new Map();
+    GlobalStores.forEach(s => GlobalStoreSums.set(s.name, {sum: 0, hasAll: true}));
+
+    //Initialize cards
     GlobalCards = getCards();
     for (var i = 0; i < GlobalCards.length; ++i)
-        GlobalQueryResults.push([]);
+        GlobalQueryResults.push([]);  
 
+    //Initialize table
     createTableWithCards(GlobalCards);
     updateCounter(0, GlobalCards.length);
 
     //Send queries
     console.log("Checking " + GlobalCards.length + " cards");
     for (var i = 0; i < GlobalCards.length; ++i)
-       stores.forEach(store => store.executeQuery(GlobalCards[i], i));
+       GlobalStores.forEach(s => s.executeQuery(GlobalCards[i], i));
 }
 
 function finalizeTable()
 {
     var bestSum = 0;
+
     for (var i = 0; i < GlobalQueryResults.length; ++i)
     {
         try
@@ -440,10 +468,12 @@ function finalizeTable()
                 extractedResults.push({price, count, name, store});
             }
 
+            var sortedResults = extractedResults.sort(sortByPrice);
+
             //If we have a valid result, update the total sum and relevant cells
-            if (extractedResults != undefined && extractedResults.length > 0)
+            if (sortedResults != undefined && sortedResults.length > 0)
             {
-                var bestResult = extractedResults[0];
+                var bestResult = sortedResults[0];
 
                 bestSum += bestResult['price'];
                 var cellClass = bestResult['count'] > 3 ? "stockOk" : (bestResult['count'] > 0 ? "stockLow" : "stockEmpty");
@@ -460,460 +490,19 @@ function finalizeTable()
             console.error("finalizeTable: " + e.message);
         }
     }
-    createSumRow(bestSum);
-}
 
-/*
-function tryFinalizeTable(force = false)
-{
-    updateCounter(requestsCompleted, requestsSent);
-    
-    if (!force && requestsCompleted < requestsSent)
-        return;
+    //Create sum row
+    if ($("#row_sum").length == 0)
+        createSumRow();
 
-    //All requests have resolved, finalize table
-    var bestSum = 0;
-    for (var i = 0; i < queryResults.length; ++i)
+    //Fill sums for stores
+    for (var i = 0; i < GlobalStores.length; ++i)
     {
-        //If no results exist
-        if (queryResults[i] == undefined || queryResults[i].length == 0)
-        {
-            $("#row_" + i + " > #bestPrice")[0].innerHTML = "<span class=\"stockEmpty\">N/A</span>";
-            $("#row_" + i + " > #bestStore")[0].innerText = "N/A";
-            continue;
-        }
-
-        var results = [];
-        for (var j = 0; j < queryResults[i].length; ++j)
-        {
-            var store = queryResults[i][j][0];
-            var sorted = queryResults[i][j][1];
-            var price = sorted[0]['price'];
-            var count = sorted[0]['count'];
-            var name = sorted[0]['name'];
-            results.push({price, count, name, store});
-        }
-
-        if (results != undefined && results.length > 0)
-        {
-            bestSum += results[0]['price'];
-
-            var span = "<span class=\"" + (results[0]['count'] > 3 ? "stockOk" : (results[0]['count'] > 0 ? "stockLow" : "stockEmpty")) + "\">";
-            var priceHtml = span + results[0]['price'] + "</span>";
-
-            $("#row_" + i + " > #bestPrice")[0].innerHTML = priceHtml;
-            $("#row_" + i + " > #bestStore")[0].innerText = results[0]['store'] + " (" + results[0]['name'] + ")";
-        }
+        var result = GlobalStoreSums.get(GlobalStores[i].name);
+        var cellClass = result.hasAll ? "stockOk" : "stockEmpty";
+        fillCell("sum", GlobalStores[i].sumId, result.sum, cellClass);
     }
 
-    var contents = "<tr id=\"row_sum\">";
-        contents += "<td  class=\"name\" id=\"sumname\"><b>Celkem</b></td>";
-        contents += "<td class=\"value\"></id>";
-        contents += "<td class=\"value\"></id>";
-        contents += "<td class=\"value\"></id>";
-        contents += "<td class=\"value\"></id>";
-        contents += "<td class=\"name\"></id>";
-        contents += "<td class=\"value\" id=\"bestSum\"><b>" + bestSum + "</b></id>";
-        contents += "</tr>";
-        $("#result_table > tbody").append(contents);
+    //Fill best sum
+    fillCell("sum", "bestSum", bestSum);
 }
-
-/*
-function checkPrices()
-{
-    //Clear old results
-    requestsSent = 0;
-    requestsCompleted = 0;
-
-    cards = [];
-    queryResults = [];
-
-    $("#result_table > tbody:last").children().remove();
-
-    //Get cards
-    cards = $('textarea#card_list').val().split("\n").filter(function (e) { return e != ""; });
-
-    //Refresh info
-    $("#doneCounter")[0].innerText = 0 + "/" + cards.length;
-    
-    //Initialize result storage
-    for (var i = 0; i < cards.length; ++i)
-        queryResults.push([]);
-
-    //Create table
-    for (var i = 0; i < cards.length; ++i)
-    {
-        var contents = "<tr id=\"row_" + i + "\">";
-        contents += "<td  class=\"name\" id=\"cardname\">" + cards[i] + "</td>";
-        contents += "<td class=\"value\" id=\"crPrice\"></id>";
-        //contents += "<td class=\"value\" id=\"crCount\"></id>";
-        contents += "<td class=\"value\" id=\"njPrice\"></id>";
-        //contents += "<td class=\"value\" id=\"njCount\"></id>";
-        contents += "<td class=\"value\" id=\"blPrice\"></id>";
-        //contents += "<td class=\"value\" id=\"blCount\"></id>";
-        contents += "<td class=\"value\" id=\"riPrice\"></id>";
-        //contents += "<td class=\"value\" id=\"riCount\"></id>";
-        contents += "<td class=\"name\" id=\"bestStore\"></id>";
-        contents += "<td class=\"value\" id=\"bestPrice\"></id>";
-        contents += "</tr>";
-        $("#result_table > tbody").append(contents);
-    }
-
-    //Send queries
-    console.log("Will check " + cards.length + " cards");
-    for (var i = 0; i < cards.length; ++i)
-    {
-        console.log("Checking " + cards[i]);
-        CR_query(cards[i], i);
-        NJ_query(cards[i], i);
-        BL_query(cards[i], i);
-        RI_query(cards[i], i);
-    }
-}
-
-
-
-///////////////////////////////////////////////////////////////////////////
-//Rishada.cz
-///////////////////////////////////////////////////////////////////////////
-function RI_query(cardName, rowId)
-{
-    console.log("RI Query for " + cardName);
-    ++requestsSent;
-    $.get(proxy + riURL + RI_getQuery(cardName), function f(r) { RI_onReceive(r, cardName, rowId); }).fail(RI_onFail);
-}
-
-function RI_onFail()
-{
-    console.log("RI FAILED");
-    ++requestsCompleted;
-}
-
-function RI_onReceive(response, cardName, rowId)
-{
-    var result = RI_parseHTML(response, cardName);
-    result = result.filter(filterInStock);
-
-    if (result.length == 0)
-    {
-        $("#row_" + rowId + " > #riPrice")[0].innerHTML = "<span class=\"stockEmpty\">N/A</span>";
-        //$("#row_" + rowId + " > #riCount")[0].innerText = "N/A";
-        ++requestsCompleted;
-        return;
-    }
-
-    var sorted = result.sort(sortByPrice);
-    queryResults[rowId].push(["Rishada", sorted]);
-
-    var count = sorted[0]['count'];
-    var span = "<span class=\"" + (count > 3 ? "stockOk" : (count > 0 ? "stockLow" : "stockEmpty")) + "\">";
-    var priceHtml = span + sorted[0]['price']; + "</span>";
-
-    $("#row_" + rowId + " > #riPrice")[0].innerHTML = priceHtml;
-    //$("#row_" + rowId + " > #riCount")[0].innerText = count;
-
-    ++requestsCompleted;
-    tryFinalizeTable();
-}
-
-function RI_getQuery(cardName)
-{
-    return "?fulltext=" + encodeURIComponent(cardName);
-}
-
-function RI_parseHTML(htmlString, cardName)
-{
-    var html = $.parseHTML(htmlString);
-    var tables = $(html).find('.buytable');
-    var trs = $(tables[0]).find('tr');
-    
-    if (tables == undefined || trs == undefined || trs.length == 0)
-    {
-        console.log("Got invalid response!");
-        return undefined;
-    }
-
-    results = [];
-    for(var i = 1; i < trs.length; ++i)
-    {
-        var tds = $(trs[i]).find('td');
-        var name = $(tds[0]).find('a')[0].innerText;
-
-        if (!isCardCorrect(name, cardName))
-        {
-            console.log("CR: " + name + " is not " + cardName);
-            continue;
-        }
-
-        var priceStr = tds[5].innerText.split(' ')[0];
-        var countStr = tds[6].innerText.split(' ')[0];
-        var count = parseInt(countStr);
-        var price = parseInt(priceStr);
-
-        //console.log(name + " | " + count + " | " + price);
-        results.push({name, count, price});
-
-    }
-
-    return results;
-}
-///////////////////////////////////////////////////////////////////////////
-//BlackLotus.cz
-///////////////////////////////////////////////////////////////////////////
-function BL_query(cardName, rowId)
-{
-    console.log("BL Query for " + cardName);
-    ++requestsSent;
-    $.get(proxy + blURL + BL_getQuery(cardName), function f(r) { BL_onReceive(r, cardName, rowId); }).fail(BL_onFail);
-}
-
-function BL_onFail()
-{
-    console.log("BL FAILED");
-    ++requestsCompleted;
-}
-
-function BL_onReceive(response, cardName, rowId)
-{
-    var result = BL_parseHTML(response, cardName);
-    result = result.filter(filterInStock);
-
-    if (result.length == 0)
-    {
-        $("#row_" + rowId + " > #blPrice")[0].innerHTML = "<span class=\"stockEmpty\">N/A</span>";
-        //$("#row_" + rowId + " > #blCount")[0].innerText = "N/A";
-        ++requestsCompleted;
-        return;
-    }
-
-    var sorted = result.sort(sortByPrice);
-    queryResults[rowId].push(["Lotus", sorted]);
-
-    var count = sorted[0]['count'];
-    var span = "<span class=\"" + (count > 3 ? "stockOk" : (count > 0 ? "stockLow" : "stockEmpty")) + "\">";
-    var priceHtml = span + sorted[0]['price']; + "</span>";
-
-    $("#row_" + rowId + " > #blPrice")[0].innerHTML = priceHtml;
-    //$("#row_" + rowId + " > #blCount")[0].innerText = count;
-
-    ++requestsCompleted;
-    tryFinalizeTable();
-}
-
-function BL_getQuery(cardName)
-{
-    return "?page=search&search=" + btoa("nazev;" + cardName + ";popis;;15;0;4;0;7;0;from13;;to13;;from14;;to14;;from12;;to12;;pricemin;;pricemax;;6;0") + "&catid=3";
-}
-
-function BL_parseHTML(htmlString, cardName)
-{
-    var html = $.parseHTML(htmlString);
-    var lists = $(html).find('#list');
-    var divs = $(lists[0]).find('.inner');
-    
-    if (lists == undefined || divs == undefined || divs.length == 0)
-    {
-        console.log("Got invalid response!");
-        return undefined;
-    }
-
-    results = [];
-    for(var i = 0; i < divs.length; ++i)
-    {
-        try
-        {
-            var name = $(divs[i]).find('h2')[0].innerText;
-
-            if (!isCardCorrect(name, cardName))
-            {
-                console.log("BL: " + name + " is not " + cardName);
-                continue;
-            }
-
-            var prices = $(divs[i]).find('.prices');
-            var dds = $(prices[0]).find('dd');
-            var count = $(dds[0]).find('.stock_quantity')[0].innerText.split(' ')[0];
-            count = parseInt(count.substring(1, count.length));
-            var priceStr = $(prices[1]).find('.cenasdph')[0].innerText.split(' ')[0].replace('/,/g', '.');
-            var price = Math.ceil(parseFloat(priceStr));
-
-            //console.log(name + " | " + count + " | " + price);
-            results.push({name, count, price});
-        }
-        catch (err) {
-            console.log("BL - caught: " + err);
-        }
-    }
-
-    return results;
-}
-
-///////////////////////////////////////////////////////////////////////////
-//Najada.cz
-///////////////////////////////////////////////////////////////////////////
-function NJ_query(cardName, rowId)
-{
-    console.log("NJ Query for " + cardName);
-    ++requestsSent;
-    $.get(proxy + njURL + NJ_getQuery(cardName), function f(r) { NJ_onReceive(r, cardName, rowId); }).fail(NJ_onFail);
-}
-
-function NJ_onFail()
-{
-    console.log("NJ FAILED");
-    ++requestsCompleted;
-}
-
-function NJ_onReceive(response, cardName, rowId)
-{
-    var result = NJ_parseHTML(response, cardName)
-    result = result.filter(filterInStock);
-
-    if (result.length == 0)
-    {
-        $("#row_" + rowId + " > #njPrice")[0].innerHTML = "<span class=\"stockEmpty\">N/A</span>";
-        //$("#row_" + rowId + " > #njCount")[0].innerText = "N/A";
-        ++requestsCompleted;
-        return;
-    }
-
-    var sorted = result.sort(sortByPrice);
-    queryResults[rowId].push(["Najada", sorted]);
-
-    var count = sorted[0]['count'];
-    var span = "<span class=\"" + (count > 3 ? "stockOk" : (count > 0 ? "stockLow" : "stockEmpty")) + "\">";
-    var priceHtml = span + sorted[0]['price']; + "</span>";
-
-    $("#row_" + rowId + " > #njPrice")[0].innerHTML = priceHtml;
-    //$("#row_" + rowId + " > #njCount")[0].innerText = count;
-
-    ++requestsCompleted;
-    tryFinalizeTable();
-}
-
-function NJ_getQuery(cardName)
-{
-    return "?Search=" + encodeURIComponent(cardName) + "&MagicCardSet=-1";
-}
-
-function NJ_parseHTML(htmlString, cardName)
-{
-    var html = $.parseHTML(htmlString);
-    var table = $(html).find('table.tabArt')[0];
-    var trlist = $(table).find('tr');
-
-    if (table == undefined || trlist == undefined || trlist.length == 0)
-    {
-        console.log("Got invalid response!");
-        return undefined;
-    }
-
-    var results = [];
-    for(var i = 1; i < trlist.length; ++i)
-    {
-        var name = $(trlist[i]).find('.tdTitle')[0].innerText.trim();
-
-        if (!isCardCorrect(name, cardName))
-        {
-            console.log("NJ: " + name + " is not " + cardName);
-            continue;
-        }
-
-        var priceCount = $(trlist[i]).find('.tdPrice')[0].innerText.trim().split(' ');
-        var price = parseInt(priceCount[0]);
-        var count = parseInt(priceCount[2].substring(1, priceCount[2].length - 1));
-        results.push({name, count, price});
-    }
-    return results;
-}
-
-///////////////////////////////////////////////////////////////////////////
-//CernyRytir.cz
-///////////////////////////////////////////////////////////////////////////
-function CR_query(cardName, rowId)
-{
-    console.log("CR Query for " + cardName);
-    ++requestsSent;
-    $.post(proxy + crURL, CR_getQuery(cardName), function f(r) { CR_onReceive(r, cardName, rowId); }).fail(CR_onFail);
-}
-
-function CR_onFail()
-{
-    console.log("CR FAILED");
-    ++requestsCompleted;
-}
-
-function CR_onReceive(response, cardName, rowId)
-{
-    var result = CR_parseHTML(response, cardName);
-    result = result.filter(filterInStock);
-
-    if (result.length == 0)
-    {
-        $("#row_" + rowId + " > #crPrice")[0].innerHTML = "<span class=\"stockEmpty\">N/A</span>";
-        //$("#row_" + rowId + " > #crCount")[0].innerText = "N/A";
-        ++requestsCompleted;
-        return;
-    }
-
-    var sorted = result.sort(sortByPrice);
-    queryResults[rowId].push(["Rytir", sorted]);
-
-    var count = sorted[0]['count'];
-    var span = "<span class=\"" + (count > 3 ? "stockOk" : (count > 0 ? "stockLow" : "stockEmpty")) + "\">";
-    var priceHtml = span + sorted[0]['price']; + "</span>";
-
-    $("#row_" + rowId + " > #crPrice")[0].innerHTML = priceHtml;
-    //$("#row_" + rowId + " > #crCount")[0].innerText = count;
-
-    ++requestsCompleted;
-    tryFinalizeTable();
-}
-
-function CR_getQuery(cardName)
-{
-    return {"edice_magic": "libovolna", "rarita": "A", "foil": "A", "jmenokarty": cardName, "triditpodle": "ceny", "submit": "Vyhledej"};
-}
-
-function CR_parseHTML(htmlString, cardName)
-{
-    var html = $.parseHTML(htmlString);
-    var tables = $(html).find('table.kusovkytext');
-    var table = tables[1];
-    
-    var trlist = $(table).find('tbody').find('tr');
-
-    if (table == undefined || trlist == undefined || trlist.length == 0)
-    {
-        console.log("Got invalid response!");
-        return undefined;
-    }
-
-    var results = [];
-    for(var i = 0; i < trlist.length; i += 0)
-    {
-        var tt = $(trlist[i++]);
-        var font = tt.find('font')[0];
-        var name = font.innerText;
-
-        if (!isCardCorrect(name, cardName))
-        {
-            console.log("CR: " + name + " is not " + cardName);
-            i += 2;
-            continue;
-        }
-
-        i++;
-        var tds = $(trlist[i++]).find('td');
-        var countStr = $(tds[1]).find('font')[0].innerText.split(' ')[0];
-        var priceStr = $(tds[2]).find('font')[0].innerText.split(' ')[0];
-        var count = parseInt(countStr);
-        var price = parseInt(priceStr);
-
-        //console.log(name + " | " + count + " | " + price);
-        results.push({name, count, price});
-    }
-
-    return results;
-}
-*/

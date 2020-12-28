@@ -69,6 +69,9 @@
             .button {
                 margin-top: 5px;
             }
+            #sum_legend {
+                display: none;
+            }
         </style>
     </head>
 
@@ -106,14 +109,15 @@
                     </tr>
                 </thead>
                 <tbody></tbody>
-            </table><br>
+            </table>
+            <div id="sum_legend">Součty: Všechny karty dostupné = <span class="stockOk">zelená</span>, některé karty nedostupné = <span class="stockEmpty">červená</span></div><br>
             Zpracováno <span id="doneCounter">0/0</span><br><br>
             <button class="button" id="table_force" onclick="finalizeTable()">Vyhodnotit manuálně</button> Tabulka bude automaticky vyhodnocena po načtení všech hodnot. Tlačítko vyhodnotí tabulku předčasně.<br>
         </div>
 
         <div class="footer center">
             <hr>
-            v0.3 (c) dex 2020
+            v0.5 (c) dex 2020
         </div>
 
     </body>
