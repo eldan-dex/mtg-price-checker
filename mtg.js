@@ -6,11 +6,14 @@ var GlobalRequestsReceived;
 var GlobalStores;
 var GlobalStoreSums;
 
+//Contains all settings
 class Settings
 {
+    //List of words which, when appearing in the name of a card we would otherwise accept, make us discard it instead
     static badWords = ["emblem", "oversized", "art series"];
 }
 
+//Base class for stores, contains generic logic
 class Store
 {
     constructor(name, shortName, url)
@@ -123,6 +126,9 @@ class Store
     }
 }
 
+/////////////////////////////
+//Store child classes, contain store-specific logic
+/////////////////////////////
 //cernyrytir.cz store object
 class Rytir extends Store
 {
@@ -315,6 +321,10 @@ class Rishada extends Store
     }
 }
 
+/////////////////////////////
+//Site-related code
+/////////////////////////////
+
 //Assign a value to a specified cell in a specified row. If cellClass is provided, value is placed inside a span with the given class
 function fillCell(rowId, cellId, value, cellClass = undefined)
 {
@@ -352,6 +362,7 @@ function createTableWithCards(cards)
     }
 }
 
+//Create the last row of the table with sums and display the sum legend
 function createSumRow()
 {
     var contents =  "<tr id=\"row_sum\">";
@@ -408,7 +419,6 @@ function filterCorrectName(suspectedCard, cardName, badWords)
             return false;
         }
     }
-
     return true;
 }
 
@@ -441,6 +451,7 @@ function checkPrices()
        GlobalStores.forEach(s => s.executeQuery(GlobalCards[i], i));
 }
 
+//Assumes the table is fully populated and computes the sums and best stores
 function finalizeTable()
 {
     var bestSum = 0;
