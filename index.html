@@ -4,6 +4,7 @@
         <title>Magič Price Checker</title>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
         <script src="mtg.js"></script>
+        <script src="ga.js"></script>
         <style>
             body {
                 font-family: monospace;
@@ -87,7 +88,7 @@
 
         <div class="split right">
             <h2>Tabulka cen</h2>
-            Note: Doporučuju posílat max 50 karet najednou. Příliš mnoho požadavků může zahltit server (v konzoli se objeví chyby 429 - Too Many Requests). Stačí pár minut počkat a zkusit to znovu.<br>
+            Note: Proxy server je momentálně omezen na 200 požadavků za hodinu od jednoho uživatele<br>
             <br>
             Zobrazuje cenu nejlevnější karty která odpovídá zadání, N/A pokud není nalezena nebo není skladem<br>
             Počty skladem: <span class="stockOk">4+ ks</span>, <span class="stockLow">1-3 ks</span>, <span class="stockEmpty">0 ks</span><br>
@@ -116,7 +117,7 @@
 
         <div class="footer center">
             <hr>
-            v0.5 (c) dex 2020
+            v0.6 (c) dex 2020
         </div>
 
     </body>

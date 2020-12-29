@@ -21,7 +21,7 @@ class Store
         this.name = name;
         this.shortName = shortName.toLowerCase();
         this.url = url;
-        this.proxy = "https://cors-anywhere.herokuapp.com/"; //TODO: Find a proxy with higher allowed throughput
+        this.proxy = "https://cors-anywhere.herokuapp.com/";
         this.cellId = shortName + "Price";
         this.sumId = shortName + "Sum";
     }
@@ -335,7 +335,21 @@ function fillCell(rowId, cellId, value, cellClass = undefined)
 //Get an array of card data from the textarea. Filters out empty lines
 function getCards()
 {
-    return $('textarea#card_list').val().split("\n").filter(function (e) { return e != ""; });
+    var cards = $('textarea#card_list').val().split("\n").filter(function (e) { return e != ""; });
+    var result = [];
+    for (var i = 0; i < cards.length; ++i)
+    {
+        //If card doesn't start with a number, add it to result
+        if (!cards[i].match(/^\d/))
+        {
+            result.push(cards[i]);
+            continue;
+        }
+
+        //Otherwise assume a card count is present and remove it
+        result.push(cards[i].substring(cards[i].indexOf(' ') + 1));
+    }
+    return result;
 }
 
 //Updates the 'processed' counter
@@ -371,7 +385,7 @@ function createSumRow()
         contents += "<td class=\"value\" id=\"njSum\"></id>";
         contents += "<td class=\"value\" id=\"blSum\"></id>";
         contents += "<td class=\"value\" id=\"riSum\"></id>";
-        contents += "<td class=\"name\"></id>";
+        contents += "<td class=\"name\" id=\"storeStats\"></id>";
         contents += "<td class=\"value\" id=\"bestSum\"><b></b></id>";
         contents += "</tr>";
     $("#result_table > tbody").append(contents);
@@ -455,6 +469,8 @@ function checkPrices()
 function finalizeTable()
 {
     var bestSum = 0;
+    var storeCounts = new Map();
+    GlobalStores.forEach(s => storeCounts.set(s.name, {count: 0}));
 
     for (var i = 0; i < GlobalQueryResults.length; ++i)
     {
@@ -489,10 +505,14 @@ function finalizeTable()
                 bestSum += bestResult['price'];
                 var cellClass = bestResult['count'] > 3 ? "stockOk" : (bestResult['count'] > 0 ? "stockLow" : "stockEmpty");
                 var priceHtml = bestResult['price']
-                var storeText = bestResult['store'] + " (" + bestResult['name'] + ")";
+                var store = bestResult['store'];
+                var storeText = store + " (" + bestResult['name'] + ")";
 
                 fillCell(i, "bestPrice", priceHtml, cellClass);
                 fillCell(i, "bestStore", storeText);
+
+                //Add 1 to the specified store counter
+                storeCounts.get(store).count += 1;
             }
         }
         catch (e)
@@ -516,4 +536,15 @@ function finalizeTable()
 
     //Fill best sum
     fillCell("sum", "bestSum", bestSum);
+
+    //Fill store stats
+    var storeStats = "";
+    for (var i = 0; i < GlobalStores.length; ++i)
+    {
+        var store = GlobalStores[i].name;
+        storeStats += store + ": " + storeCounts.get(store).count;
+        if (i != GlobalStores.length - 1)
+            storeStats += ", ";
+    }
+    fillCell("sum", "storeStats", storeStats);
 }
