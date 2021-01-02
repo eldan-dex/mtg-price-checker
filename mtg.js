@@ -1,11 +1,10 @@
-//v0.5, (c) dex 2020
+//v0.7, (c) dex 2021
+//This is my first attempt at writing something in JS, so I know this is awful. Hopefully somebody can help me refactor it?
+
 var GlobalCards;
 var GlobalResults;
 var GlobalRequestsSent;
 var GlobalRequestsReceived;
-var GlobalQueryResults;
-var GlobalStores;
-var GlobalStoreSums;
 
 //Contains all settings
 class Settings
@@ -193,6 +192,7 @@ class Results
         return result;
     }
 
+	//Get the number of cards selected as best option for each store
     getBestPicksPerStore()
     {
         var result = new Map();
@@ -609,21 +609,14 @@ function checkPrices()
     //Clear old results
     GlobalRequestsSent = 0;
     GlobalRequestsCompleted = 0;
-    GlobalQueryResults = [];
-    Site.clearTable();
 
-    //Initialize stores and store totals
+    //Initialize cards, stores and results
+    GlobalCards = Site.getCards();
     GlobalStores = [new Rytir(), new Najada(), new Lotus(), new Rishada()];
     GlobalResults = new Results();
-    GlobalStoreSums = new Map();
-    GlobalStores.forEach(s => GlobalStoreSums.set(s.name, {sum: 0, hasAll: true}));
-
-    //Initialize cards
-    GlobalCards = Site.getCards();
-    for (var i = 0; i < GlobalCards.length; ++i)
-        GlobalQueryResults.push([]);  
 
     //Initialize table
+    Site.clearTable();
     Site.createTableWithCards(GlobalCards);
     Site.updateCounter(0, GlobalCards.length);
 
