@@ -90,7 +90,7 @@
             <h2>Tabulka cen</h2>
             Note: Proxy server je momentálně omezen na 200 požadavků za hodinu od jednoho uživatele<br>
             <br>
-            Zobrazuje cenu nejlevnější karty která odpovídá zadání, N/A pokud není nalezena nebo není skladem<br>
+            Zobrazuje cenu nejlevnější karty která odpovídá zadání, N/A pokud není nalezena nebo není skladem, FAILED pokud hledání selže<br>
             Počty skladem: <span class="stockOk">4+ ks</span>, <span class="stockLow">1-3 ks</span>, <span class="stockEmpty">0 ks</span><br>
             <table id="result_table">
                 <thead>
@@ -110,7 +110,7 @@
                 </thead>
                 <tbody></tbody>
             </table>
-            <div id="sum_legend">Součty: Všechny karty dostupné = <span class="stockOk">zelená</span>, některé karty nedostupné = <span class="stockEmpty">červená</span></div><br>
+            <div id="sum_legend">Součty: Všechny karty dostupné = <span class="stockOk">zelená</span>, některé karty nedostupné = <span class="stockLow">oranžová</span>, žádné karty = <span class="stockLow">červená</span></div><br>
             Zpracováno <span id="doneCounter">0/0</span><br><br>
             <button class="button" id="table_force" onclick="finalizeTable()">Vyhodnotit manuálně</button> Tabulka bude automaticky vyhodnocena po načtení všech hodnot. Tlačítko vyhodnotí tabulku předčasně.<br>
         </div>

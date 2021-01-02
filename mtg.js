@@ -82,30 +82,44 @@ class Results
     {
         this.resultMap = new Map();
         this.failMap = new Map();
+        this.storeCardCounts = new Map();
     }
 
     //Add a card result to the map
-    addResult(cardId, storeCountPrice)
+    addResult(cardId, nameStoreCountPrice)
     {
+        //Add card data
         if (!this.resultMap.has(cardId))
             this.resultMap.set(cardId, []);
+        
+        this.resultMap.get(cardId).push(nameStoreCountPrice);
 
-        this.resultMap.get(cardId).push(storeCountPrice);
+        //Add card to store counter
+        if (!this.storeCardCounts.has(nameStoreCountPrice['store']))
+            this.storeCardCounts.set(nameStoreCountPrice['store'], 0);
+
+        this.storeCardCounts.set(nameStoreCountPrice['store'], this.storeCardCounts.get(nameStoreCountPrice['store']) + 1);
     }
 
     //Logs that a store failed for a particular card
-    addFail(cardId, storeName)
+    addFail(cardId, storeName, failText)
     {
         if (!this.failMap.has(cardId))
             this.failMap.set(cardId, []);
 
-        this.failMap.get(cardId).push({store: storeName});
+        this.failMap.get(cardId).push({store: storeName, text: failText});
     }
 
     //Get a map of failed queries
     getFails()
     {
         return this.failMap;
+    }
+
+    //Numbers of cards obtained from all stores
+    getStoreCardCounts()
+    {
+        return this.storeCardCounts;
     }
 
 
@@ -143,7 +157,7 @@ class Results
                 if (storesDone.includes(sorted[j]['store']))
                     continue;
 
-                result.get(key).push({store: sorted[j]['store'], count: sorted[j]['count'], price: sorted[j]['price']});
+                result.get(key).push(sorted[j]);
                 storesDone.push(sorted[j]['store']);
             }
         }
@@ -175,6 +189,19 @@ class Results
                 if (val[i]['count'] > 0)
                     result.set(key, result.get(key) + val[i]['price']);
             }
+        }
+        return result;
+    }
+
+    getBestPicksPerStore()
+    {
+        var result = new Map();
+        for (let [key, val] of this.getBestPrices())
+        {
+            if (!result.has(val['store']))
+                result.set(val['store'], 0);
+
+            result.set(val['store'], result.get(val['store']) + 1);
         }
         return result;
     }
@@ -218,32 +245,13 @@ class Store
 
             //Add data to results
             if (filteredStock.length == 0)
-                GlobalResults.addFail(rowId, this.name);
-            else
-                for (var i = 0; i < filteredStock.length; ++i)
-                        GlobalResults.addResult(rowId, {store: this.name, count: filteredStock[i]['count'], price: filteredStock[i]['price']});
-
-            //If there is no data, fill N/A into the relevant cell and return
-            /*if (filteredStock.length == 0)
             {
-                Site.fillCell(rowId, this.cellId, "N/A", "stockEmpty");
-                GlobalStoreSums.get(this.name).hasAll = false;
+                GlobalResults.addFail(rowId, this.name, "N/A");
+                console.log(this.name + ": " + cardName + " not found");
             }
             else
-            {
-                //Sort results by price, ascending
-                var sortedData = filteredStock.sort(Util.sortByPrice);
-
-                //Add to global results
-                GlobalQueryResults[rowId].push([this.name, sortedData]);
-
-                //Display the best price with the proper highlight
-                var count = sortedData[0]['count'];
-                var cellClass = count > 3 ? "stockOk" : (count > 0 ? "stockLow" : "stockEmpty");
-                var price = sortedData[0]['price']
-                Site.fillCell(rowId, this.cellId, price, cellClass);
-                GlobalStoreSums.get(this.name).sum += price;
-            }*/
+                for (var i = 0; i < filteredStock.length; ++i)
+                        GlobalResults.addResult(rowId, {name: filteredStock[i]['name'], store: this.name, count: filteredStock[i]['count'], price: filteredStock[i]['price']});
         }
         catch (e)
         {
@@ -258,7 +266,7 @@ class Store
     //Executes upon an AJAX request failing
     ajaxFail(rowId)
     {
-        Site.fillCell(rowId, this.cellId, "FAIL", "stockEmpty");
+        Results.addFail(rowId, this.name, "FAILED");
         this.completeRequest();
     }
 
@@ -332,7 +340,7 @@ class Rytir extends Store
             try
             {
                 var tt = $(trlist[i++]);
-                var name = tt.find('font')[0].innerText;        
+                var name = tt.find('font')[0].innerText.trim();        
                 i++;
                 var tds = $(trlist[i++]).find('td');
                 var count = parseInt($(tds[1]).find('font')[0].innerText.split(' ')[0]);
@@ -429,7 +437,7 @@ class Lotus extends Store
         {
             try
             {
-                var name = $(divs[i]).find('h2')[0].innerText;
+                var name = $(divs[i]).find('h2')[0].innerText.trim();
                 var prices = $(divs[i]).find('.prices');
                 var dds = $(prices[0]).find('dd');
                 var count = 0;
@@ -481,7 +489,7 @@ class Rishada extends Store
             try
             {
                 var tds = $(trs[i]).find('td');
-                var name = $(tds[0]).find('a')[0].innerText;
+                var name = $(tds[0]).find('a')[0].innerText.trim();
                 var price = parseInt(tds[5].innerText.split(' ')[0]);
                 var count = parseInt(tds[6].innerText.split(' ')[0]);
                 results.push({name, count, price});
@@ -501,9 +509,10 @@ class Rishada extends Store
 class Site
 {
     //Assign a value to a specified cell in a specified row. If cellClass is provided, value is placed inside a span with the given class
-    static fillCell(rowId, cellId, value, cellClass = undefined)
+    static fillCell(rowId, cellId, value, cellClass = undefined, cellStyle = undefined)
     {
-        var content = (cellClass == undefined) ? value : ("<span class=\"" + cellClass + "\">" + value + "</span>");
+        var styleContent = (cellStyle == undefined) ? value : ("<" + cellStyle + ">" + value + "</" + cellStyle + ">");
+        var content = (cellClass == undefined) ? styleContent : ("<span class=\"" + cellClass + "\">" + styleContent + "</span>");
         $("#row_" + rowId + " > #" + cellId)[0].innerHTML = content;
     }
 
@@ -588,94 +597,10 @@ class Site
         {
             for (var i = 0; i < data.length; ++i)
             {
-                this.fillCell(id, data[i]['store'] + "Price", "N/A", "stockEmpty");
+                this.fillCell(id, data[i]['store'] + "Price", data[i]['text'], "stockEmpty");
             }
         }
     }
-
-    //Assumes the table is fully populated and computes the sums and best stores
-    /*static finalizeTable()
-    {
-        var bestSum = 0;
-        var storeCounts = new Map();
-        GlobalStores.forEach(s => storeCounts.set(s.name, {count: 0}));
-
-        for (var i = 0; i < GlobalQueryResults.length; ++i)
-        {
-            try
-            {
-                //If no results exist
-                if (GlobalQueryResults[i] == undefined || GlobalQueryResults[i].length == 0)
-                {
-                    Site.fillCell(i, "bestPrice", "N/A", "stockEmpty");
-                    continue;
-                }
-                
-                //Extract data from results
-                var extractedResults = [];
-                for (var j = 0; j < GlobalQueryResults[i].length; ++j)
-                {
-                    var store = GlobalQueryResults[i][j][0];
-                    var sorted = GlobalQueryResults[i][j][1];
-                    var price = sorted[0]['price'];
-                    var count = sorted[0]['count'];
-                    var name = sorted[0]['name'];
-                    extractedResults.push({price, count, name, store});
-                }
-
-                var sortedResults = extractedResults.sort(Util.sortByPrice);
-
-                //If we have a valid result, update the total sum and relevant cells
-                if (sortedResults != undefined && sortedResults.length > 0)
-                {
-                    var bestResult = sortedResults[0];
-
-                    bestSum += bestResult['price'];
-                    var cellClass = bestResult['count'] > 3 ? "stockOk" : (bestResult['count'] > 0 ? "stockLow" : "stockEmpty");
-                    var priceHtml = bestResult['price']
-                    var store = bestResult['store'];
-                    var storeText = store + " (" + bestResult['name'] + ")";
-
-                    Site.fillCell(i, "bestPrice", priceHtml, cellClass);
-                    Site.fillCell(i, "bestStore", storeText);
-
-                    //Add 1 to the specified store counter
-                    storeCounts.get(store).count += 1;
-                }
-            }
-            catch (e)
-            {
-                Site.fillCell(i, "bestPrice", "FAILED", "stockEmpty");
-                console.error("finalizeTable: " + e.message);
-            }
-        }
-
-        //Create sum row
-        if ($("#row_sum").length == 0)
-        Site.createSumRow();
-
-        //Fill sums for stores
-        for (var i = 0; i < GlobalStores.length; ++i)
-        {
-            var result = GlobalStoreSums.get(GlobalStores[i].name);
-            var cellClass = result.hasAll ? "stockOk" : "stockEmpty";
-            Site.fillCell("sum", GlobalStores[i].sumId, result.sum, cellClass);
-        }
-
-        //Fill best sum
-        Site.fillCell("sum", "bestSum", bestSum);
-
-        //Fill store stats
-        var storeStats = "";
-        for (var i = 0; i < GlobalStores.length; ++i)
-        {
-            var store = GlobalStores[i].name;
-            storeStats += store + ": " + storeCounts.get(store).count;
-            if (i != GlobalStores.length - 1)
-                storeStats += ", ";
-        }
-        Site.fillCell("sum", "storeStats", storeStats);
-    }*/
 }
 
 //Resets everything and starts the price-checking process
@@ -724,6 +649,7 @@ function finalizeTable()
         var data = bestPrices.get(i);
         var cellClass = data['count'] > 3 ? "stockOk" : (data['count'] > 0 ? "stockLow" : "stockEmpty");
         Site.fillCell(i, "bestPrice", data['price'], cellClass);
+        Site.fillCell(i, "bestStore", data['store'] + " (" + data['name'] + ")");
     }
 
     //Create sum row if it doesn't yet exist
@@ -732,30 +658,27 @@ function finalizeTable()
 
     //Fill store sums
     var storeSums = GlobalResults.getStoreSums();
+    var storeCardCounts = GlobalResults.getStoreCardCounts();
     for (var i = 0; i < GlobalStores.length; ++i)
     {
         var store = GlobalStores[i].name;
         if (!storeSums.has(store))
         {
-            Site.fillCell("sum", store + "Sum", 0, "stockEmpty");
+            Site.fillCell("sum", store + "Sum", 0, "stockEmpty", "i");
             continue;
         }
 
-        //TODO style
-        Site.fillCell("sum", store + "Sum", storeSums.get(store));
+        var cellClass = storeCardCounts.get(store) == GlobalCards.length ? "stockOk" : (storeCardCounts.get(store) > 0 ? "stockLow" : "stockEmpty");
+        Site.fillCell("sum", store + "Sum", storeSums.get(store), cellClass, "i");
     }
-
-    //Fill best sum
-    Site.fillCell("sum", "bestSum", GlobalResults.getBestSum());
 
     //Fill store stats
-    /*var storeStats = "";
-    for (var i = 0; i < GlobalStores.length; ++i)
-    {
-        var store = GlobalStores[i].name;
-        storeStats += store + ": " + storeCounts.get(store).count;
-        if (i != GlobalStores.length - 1)
-            storeStats += ", ";
-    }
-    Site.fillCell("sum", "storeStats", storeStats);*/
+    var storeStats = "";
+    for (let [store, count] of GlobalResults.getBestPicksPerStore())
+        storeStats += store + ": " + count + ", ";
+    storeStats = storeStats.substr(0, storeStats.length - 2);
+    Site.fillCell("sum", "storeStats", storeStats, undefined, "i");
+
+    //Fill best sum
+    Site.fillCell("sum", "bestSum", GlobalResults.getBestSum(), undefined, "b");
 }
