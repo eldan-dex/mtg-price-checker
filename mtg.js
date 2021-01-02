@@ -1,8 +1,9 @@
 //v0.5, (c) dex 2020
 var GlobalCards;
-var GlobalQueryResults;
+var GlobalResults;
 var GlobalRequestsSent;
 var GlobalRequestsReceived;
+var GlobalQueryResults;
 var GlobalStores;
 var GlobalStoreSums;
 
@@ -13,17 +14,182 @@ class Settings
     static badWords = ["emblem", "oversized", "art series"];
 }
 
+//Contains utility functions
+class Util
+{
+    //Sorts objects by 'price' in ascending order
+    static sortByPrice(a, b)
+    {
+        var pa = a['price'];
+        var pb = b['price'];
+        return (pa > pb) ? 1 : ((pa < pb) ? -1 : 0);
+    }
+
+    //Sorts objects primarily by 'store', secondarily by 'price' in ascending order
+    static sortByStoreThenPrice(a, b)
+    {
+        var sa = a['store'];
+        var sb = b['store'];
+        if (sa > sb)
+            return 1;
+        else if (sa < sb)
+            return -1;
+        else
+            return Util.sortByPrice(a, b);
+    }
+
+
+    //Filters out objects where 'count' is zero or nonexistent
+    static filterInStock(obj)
+    {
+        return obj['count'] != undefined && obj['count'] > 0;
+    }
+
+    //Filters out stores not matching the specified name
+    static filterStoreName(obj, storeName)
+    {
+        return obj['store'] != undefined && obj['store'] == storeName;
+    }
+
+    //Check whether the name matches while ignoring nonalphanumeric characters
+    static filterCorrectName(suspectedCard, cardName, badWords)
+    {
+        var sus = suspectedCard.replace(/\W/g, '').toLowerCase();
+        var corr = cardName.replace(/\W/g, '').toLowerCase();
+
+        if (!sus.includes(corr))
+            return false;
+
+        //Check for bad words
+        var tmp = sus.replace(corr, "").trim();
+        for (var i = 0; i < badWords.length; ++i)
+        {
+            var badWord = badWords[i].replace(/\W/g, '').toLowerCase().trim();
+            if (tmp.includes(badWord))
+            {
+                console.log(suspectedCard + " is not " + cardName);
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+//Contains all query results and supporting logic
+class Results
+{
+    constructor()
+    {
+        this.resultMap = new Map();
+        this.failMap = new Map();
+    }
+
+    //Add a card result to the map
+    addResult(cardId, storeCountPrice)
+    {
+        if (!this.resultMap.has(cardId))
+            this.resultMap.set(cardId, []);
+
+        this.resultMap.get(cardId).push(storeCountPrice);
+    }
+
+    //Logs that a store failed for a particular card
+    addFail(cardId, storeName)
+    {
+        if (!this.failMap.has(cardId))
+            this.failMap.set(cardId, []);
+
+        this.failMap.get(cardId).push({store: storeName});
+    }
+
+    //Get a map of failed queries
+    getFails()
+    {
+        return this.failMap;
+    }
+
+
+    //Get a map of cheapest cards
+    getBestPrices()
+    {
+        var result = new Map();
+
+        //For each card
+        for (let [key, val] of this.getBestStorePrices())
+        {
+            //Get the single best priced card of all stores
+            var sorted = val.sort(Util.sortByPrice);
+            result.set(key, sorted[0]);
+        }
+
+        return result;
+    }
+
+    //Get a map of cards with the cheapest price for all stores
+    getBestStorePrices()
+    {
+        var result = new Map();
+
+        //For each card
+        for (let [key, val] of this.resultMap)
+        {
+            var sorted = val.sort(Util.sortByStoreThenPrice);
+            result.set(key, []);
+
+            //For each store, get the best price
+            var storesDone = [];
+            for (var j = 0; j < sorted.length; ++j)
+            {
+                if (storesDone.includes(sorted[j]['store']))
+                    continue;
+
+                result.get(key).push({store: sorted[j]['store'], count: sorted[j]['count'], price: sorted[j]['price']});
+                storesDone.push(sorted[j]['store']);
+            }
+        }
+
+        return result;
+    }
+
+    //Total sum for all cards with the best stores
+    getBestSum()
+    {
+        var result = 0;
+        for (let [key, val] of this.getBestPrices())
+            result += val['price'];
+        return result;
+    }
+
+    //Per-store sum of card prices
+    getStoreSums()
+    {
+        var result = new Map();
+        for (let [id, val] of this.getBestStorePrices())
+        {
+            for (var i = 0; i < val.length; ++i)
+            {
+                var key = val[i]['store'];
+                if (!result.has(key))
+                    result.set(key, 0);
+                
+                if (val[i]['count'] > 0)
+                    result.set(key, result.get(key) + val[i]['price']);
+            }
+        }
+        return result;
+    }
+}
+
 //Base class for stores, contains generic logic
 class Store
 {
-    constructor(name, shortName, url)
+    constructor(name, url)
     {
         this.name = name;
-        this.shortName = shortName.toLowerCase();
         this.url = url;
         this.proxy = "https://cors-anywhere.herokuapp.com/";
-        this.cellId = shortName + "Price";
-        this.sumId = shortName + "Sum";
+        this.cellId = name + "Price";
+        this.sumId = name + "Sum";
     }
 
     //Executes upon an AJAX request succeeding
@@ -40,26 +206,33 @@ class Store
             else
             {
                 //Remove cards with incorrect names
-                var filteredNames = cardData.filter(function f(val) { return filterCorrectName(val.name, cardName, Settings.badWords);});
+                var filteredNames = cardData.filter(function f(val) { return Util.filterCorrectName(val.name, cardName, Settings.badWords);});
 
                 //Log all incorrect finds to console
                 let diff = cardData.filter(x => !filteredNames.includes(x));
                 diff.forEach(x => console.log(this.name + ": " + x.name + " is not " + cardName));
 
                 //Remove cards not in stock
-                filteredStock = filteredNames.filter(filterInStock);
+                filteredStock = filteredNames.filter(Util.filterInStock);
             }
 
-            //If there is no data, fill N/A into the relevant cell and return
+            //Add data to results
             if (filteredStock.length == 0)
+                GlobalResults.addFail(rowId, this.name);
+            else
+                for (var i = 0; i < filteredStock.length; ++i)
+                        GlobalResults.addResult(rowId, {store: this.name, count: filteredStock[i]['count'], price: filteredStock[i]['price']});
+
+            //If there is no data, fill N/A into the relevant cell and return
+            /*if (filteredStock.length == 0)
             {
-                fillCell(rowId, this.cellId, "N/A", "stockEmpty");
+                Site.fillCell(rowId, this.cellId, "N/A", "stockEmpty");
                 GlobalStoreSums.get(this.name).hasAll = false;
             }
             else
             {
                 //Sort results by price, ascending
-                var sortedData = filteredStock.sort(sortByPrice);
+                var sortedData = filteredStock.sort(Util.sortByPrice);
 
                 //Add to global results
                 GlobalQueryResults[rowId].push([this.name, sortedData]);
@@ -68,9 +241,9 @@ class Store
                 var count = sortedData[0]['count'];
                 var cellClass = count > 3 ? "stockOk" : (count > 0 ? "stockLow" : "stockEmpty");
                 var price = sortedData[0]['price']
-                fillCell(rowId, this.cellId, price, cellClass);
+                Site.fillCell(rowId, this.cellId, price, cellClass);
                 GlobalStoreSums.get(this.name).sum += price;
-            }
+            }*/
         }
         catch (e)
         {
@@ -85,7 +258,7 @@ class Store
     //Executes upon an AJAX request failing
     ajaxFail(rowId)
     {
-        fillCell(rowId, this.cellId, "FAIL", "stockEmpty");
+        Site.fillCell(rowId, this.cellId, "FAIL", "stockEmpty");
         this.completeRequest();
     }
 
@@ -93,7 +266,8 @@ class Store
     completeRequest()
     {
         ++GlobalRequestsCompleted;
-        updateCounter(GlobalRequestsCompleted, GlobalRequestsSent);
+        Site.updateCounter(GlobalRequestsCompleted, GlobalRequestsSent);
+        Site.refreshTable();
 
         if (GlobalRequestsCompleted >= GlobalRequestsSent)
             finalizeTable();
@@ -134,7 +308,7 @@ class Rytir extends Store
 {
     constructor()
     {
-        super("Rytir", "cr", "https://www.cernyrytir.cz/index.php3?akce=3");
+        super("Rytir", "https://www.cernyrytir.cz/index.php3?akce=3");
         super.setQueryInfo("post", this.createQuery, this.parseReply);
     }
 
@@ -179,7 +353,7 @@ class Najada extends Store
 {
     constructor()
     {
-        super("Najada", "nj", "https://www.najada.cz/cz/kusovky-mtg/");
+        super("Najada", "https://www.najada.cz/cz/kusovky-mtg/");
         super.setQueryInfo("get", this.createQuery, this.parseReply);
     }
 
@@ -231,7 +405,7 @@ class Lotus extends Store
 {
     constructor()
     {
-        super("Lotus", "bl", "http://www.blacklotus.cz/magic-vyhledavani/");
+        super("Lotus", "http://www.blacklotus.cz/magic-vyhledavani/");
         super.setQueryInfo("get", this.createQuery, this.parseReply);
     }
 
@@ -282,7 +456,7 @@ class Rishada extends Store
 {
     constructor()
     {
-        super("Rishada", "ri", "http://rishada.cz/hledani");
+        super("Rishada", "http://rishada.cz/hledani");
         super.setQueryInfo("get", this.createQuery, this.parseReply);
     }
 
@@ -324,116 +498,184 @@ class Rishada extends Store
 /////////////////////////////
 //Site-related code
 /////////////////////////////
-
-//Assign a value to a specified cell in a specified row. If cellClass is provided, value is placed inside a span with the given class
-function fillCell(rowId, cellId, value, cellClass = undefined)
+class Site
 {
-    var content = (cellClass == undefined) ? value : ("<span class=\"" + cellClass + "\">" + value + "</span>");
-    $("#row_" + rowId + " > #" + cellId)[0].innerHTML = content;
-}
-
-//Get an array of card data from the textarea. Filters out empty lines
-function getCards()
-{
-    var cards = $('textarea#card_list').val().split("\n").filter(function (e) { return e != ""; });
-    var result = [];
-    for (var i = 0; i < cards.length; ++i)
+    //Assign a value to a specified cell in a specified row. If cellClass is provided, value is placed inside a span with the given class
+    static fillCell(rowId, cellId, value, cellClass = undefined)
     {
-        //If card doesn't start with a number, add it to result
-        if (!cards[i].match(/^\d/))
-        {
-            result.push(cards[i]);
-            continue;
-        }
-
-        //Otherwise assume a card count is present and remove it
-        result.push(cards[i].substring(cards[i].indexOf(' ') + 1));
+        var content = (cellClass == undefined) ? value : ("<span class=\"" + cellClass + "\">" + value + "</span>");
+        $("#row_" + rowId + " > #" + cellId)[0].innerHTML = content;
     }
-    return result;
-}
 
-//Updates the 'processed' counter
-function updateCounter(current, total)
-{
-    $("#doneCounter")[0].innerText = current + "/" + total;
-}
-
-//Creates a table with the given array of card names and the rest of cells empty
-function createTableWithCards(cards)
-{
-    for (var i = 0; i < cards.length; ++i)
+    //Get an array of card data from the textarea. Filters out empty lines
+    static getCards()
     {
-        var contents =  "<tr id=\"row_" + i + "\">";
-            contents += "<td  class=\"name\" id=\"cardname\">" + cards[i] + "</td>";
-            contents += "<td class=\"value\" id=\"crPrice\"></id>";
-            contents += "<td class=\"value\" id=\"njPrice\"></id>";
-            contents += "<td class=\"value\" id=\"blPrice\"></id>";
-            contents += "<td class=\"value\" id=\"riPrice\"></id>";
-            contents += "<td class=\"name\" id=\"bestStore\"></id>";
-            contents += "<td class=\"value\" id=\"bestPrice\"></id>";
+        var cards = $('textarea#card_list').val().split("\n").filter(function (e) { return e != ""; });
+        var result = [];
+        for (var i = 0; i < cards.length; ++i)
+        {
+            //If card doesn't start with a number, add it to result
+            if (!cards[i].match(/^\d/))
+            {
+                result.push(cards[i]);
+                continue;
+            }
+
+            //Otherwise assume a card count is present and remove it
+            result.push(cards[i].substring(cards[i].indexOf(' ') + 1));
+        }
+        return result;
+    }
+
+    //Updates the 'processed' counter
+    static updateCounter(current, total)
+    {
+        $("#doneCounter")[0].innerText = current + "/" + total;
+    }
+
+    //Creates a table with the given array of card names and the rest of cells empty
+    static createTableWithCards(cards)
+    {
+        for (var i = 0; i < cards.length; ++i)
+        {
+            var contents =  "<tr id=\"row_" + i + "\">";
+                contents += "<td  class=\"name\" id=\"cardname\">" + cards[i] + "</td>";
+
+                GlobalStores.forEach(s => contents += "<td class=\"value\" id=\"" + s.name + "Price\"></id>");
+
+                contents += "<td class=\"name\" id=\"bestStore\"></id>";
+                contents += "<td class=\"value\" id=\"bestPrice\"></id>";
+                contents += "</tr>";
+            $("#result_table > tbody").append(contents);
+        }
+    }
+
+    //Create the last row of the table with sums and display the sum legend
+    static createSumRow()
+    {
+        var contents =  "<tr id=\"row_sum\">";
+            contents += "<td class=\"name\" id=\"sumname\"><b>Celkem</b></td>";
+            
+            GlobalStores.forEach(s => contents += "<td class=\"value\" id=\"" + s.name + "Sum\"></id>");
+
+            contents += "<td class=\"name\" id=\"storeStats\"></id>";
+            contents += "<td class=\"value\" id=\"bestSum\"><b></b></id>";
             contents += "</tr>";
         $("#result_table > tbody").append(contents);
+        $("#sum_legend").css("display", "block");
     }
-}
 
-//Create the last row of the table with sums and display the sum legend
-function createSumRow()
-{
-    var contents =  "<tr id=\"row_sum\">";
-        contents += "<td class=\"name\" id=\"sumname\"><b>Celkem</b></td>";
-        contents += "<td class=\"value\" id=\"crSum\"></id>";
-        contents += "<td class=\"value\" id=\"njSum\"></id>";
-        contents += "<td class=\"value\" id=\"blSum\"></id>";
-        contents += "<td class=\"value\" id=\"riSum\"></id>";
-        contents += "<td class=\"name\" id=\"storeStats\"></id>";
-        contents += "<td class=\"value\" id=\"bestSum\"><b></b></id>";
-        contents += "</tr>";
-    $("#result_table > tbody").append(contents);
-    $("#sum_legend").css("display", "block");
-}
-
-//Clears the table except for the header
-function clearTable()
-{
-    $("#result_table > tbody:last").children().remove();
-    $("#sum_legend").css("display", "none");
-}
-
-//Sorts objects by 'price' in ascending order
-function sortByPrice(a, b)
-{
-    var pa = a['price'];
-    var pb = b['price'];
-    return (pa > pb) ? 1 : ((pa < pb) ? -1 : 0);
-}
-
-//Filters out objects where 'count' is zero or nonexistent
-function filterInStock(obj)
-{
-    return obj['count'] != undefined && obj['count'] > 0;
-}
-
- //Check whether the name matches while ignoring nonalphanumeric characters
-function filterCorrectName(suspectedCard, cardName, badWords)
-{
-    var sus = suspectedCard.replace(/\W/g, '').toLowerCase();
-    var corr = cardName.replace(/\W/g, '').toLowerCase();
-
-    if (!sus.includes(corr))
-        return false;
-
-    //Check for bad words
-    var tmp = sus.replace(corr, "").trim();
-    for (var i = 0; i < badWords.length; ++i)
+    //Clears the table except for the header
+    static clearTable()
     {
-        var badWord = badWords[i].replace(/\W/g, '').toLowerCase().trim();
-        if (tmp.includes(badWord))
+        $("#result_table > tbody:last").children().remove();
+        $("#sum_legend").css("display", "none");
+    }
+
+    //Refreshes the table
+    static refreshTable()
+    {
+        for (let [id, data] of GlobalResults.getBestStorePrices())
         {
-            console.log(suspectedCard + " is not " + cardName);
-            return false;
+            for (var i = 0; i < data.length; ++i)
+            {
+                var cellClass = data[i]['count'] > 3 ? "stockOk" : (data[i]['count'] > 0 ? "stockLow" : "stockEmpty");
+                this.fillCell(id, data[i]['store'] + "Price", data[i]['price'], cellClass);
+            }
+        }
+
+        for (let [id, data] of GlobalResults.getFails())
+        {
+            for (var i = 0; i < data.length; ++i)
+            {
+                this.fillCell(id, data[i]['store'] + "Price", "N/A", "stockEmpty");
+            }
         }
     }
-    return true;
+
+    //Assumes the table is fully populated and computes the sums and best stores
+    /*static finalizeTable()
+    {
+        var bestSum = 0;
+        var storeCounts = new Map();
+        GlobalStores.forEach(s => storeCounts.set(s.name, {count: 0}));
+
+        for (var i = 0; i < GlobalQueryResults.length; ++i)
+        {
+            try
+            {
+                //If no results exist
+                if (GlobalQueryResults[i] == undefined || GlobalQueryResults[i].length == 0)
+                {
+                    Site.fillCell(i, "bestPrice", "N/A", "stockEmpty");
+                    continue;
+                }
+                
+                //Extract data from results
+                var extractedResults = [];
+                for (var j = 0; j < GlobalQueryResults[i].length; ++j)
+                {
+                    var store = GlobalQueryResults[i][j][0];
+                    var sorted = GlobalQueryResults[i][j][1];
+                    var price = sorted[0]['price'];
+                    var count = sorted[0]['count'];
+                    var name = sorted[0]['name'];
+                    extractedResults.push({price, count, name, store});
+                }
+
+                var sortedResults = extractedResults.sort(Util.sortByPrice);
+
+                //If we have a valid result, update the total sum and relevant cells
+                if (sortedResults != undefined && sortedResults.length > 0)
+                {
+                    var bestResult = sortedResults[0];
+
+                    bestSum += bestResult['price'];
+                    var cellClass = bestResult['count'] > 3 ? "stockOk" : (bestResult['count'] > 0 ? "stockLow" : "stockEmpty");
+                    var priceHtml = bestResult['price']
+                    var store = bestResult['store'];
+                    var storeText = store + " (" + bestResult['name'] + ")";
+
+                    Site.fillCell(i, "bestPrice", priceHtml, cellClass);
+                    Site.fillCell(i, "bestStore", storeText);
+
+                    //Add 1 to the specified store counter
+                    storeCounts.get(store).count += 1;
+                }
+            }
+            catch (e)
+            {
+                Site.fillCell(i, "bestPrice", "FAILED", "stockEmpty");
+                console.error("finalizeTable: " + e.message);
+            }
+        }
+
+        //Create sum row
+        if ($("#row_sum").length == 0)
+        Site.createSumRow();
+
+        //Fill sums for stores
+        for (var i = 0; i < GlobalStores.length; ++i)
+        {
+            var result = GlobalStoreSums.get(GlobalStores[i].name);
+            var cellClass = result.hasAll ? "stockOk" : "stockEmpty";
+            Site.fillCell("sum", GlobalStores[i].sumId, result.sum, cellClass);
+        }
+
+        //Fill best sum
+        Site.fillCell("sum", "bestSum", bestSum);
+
+        //Fill store stats
+        var storeStats = "";
+        for (var i = 0; i < GlobalStores.length; ++i)
+        {
+            var store = GlobalStores[i].name;
+            storeStats += store + ": " + storeCounts.get(store).count;
+            if (i != GlobalStores.length - 1)
+                storeStats += ", ";
+        }
+        Site.fillCell("sum", "storeStats", storeStats);
+    }*/
 }
 
 //Resets everything and starts the price-checking process
@@ -443,21 +685,22 @@ function checkPrices()
     GlobalRequestsSent = 0;
     GlobalRequestsCompleted = 0;
     GlobalQueryResults = [];
-    clearTable();
+    Site.clearTable();
 
     //Initialize stores and store totals
     GlobalStores = [new Rytir(), new Najada(), new Lotus(), new Rishada()];
+    GlobalResults = new Results();
     GlobalStoreSums = new Map();
     GlobalStores.forEach(s => GlobalStoreSums.set(s.name, {sum: 0, hasAll: true}));
 
     //Initialize cards
-    GlobalCards = getCards();
+    GlobalCards = Site.getCards();
     for (var i = 0; i < GlobalCards.length; ++i)
         GlobalQueryResults.push([]);  
 
     //Initialize table
-    createTableWithCards(GlobalCards);
-    updateCounter(0, GlobalCards.length);
+    Site.createTableWithCards(GlobalCards);
+    Site.updateCounter(0, GlobalCards.length);
 
     //Send queries
     console.log("Checking " + GlobalCards.length + " cards");
@@ -468,77 +711,45 @@ function checkPrices()
 //Assumes the table is fully populated and computes the sums and best stores
 function finalizeTable()
 {
-    var bestSum = 0;
-    var storeCounts = new Map();
-    GlobalStores.forEach(s => storeCounts.set(s.name, {count: 0}));
-
-    for (var i = 0; i < GlobalQueryResults.length; ++i)
+    //Fill best price for each card
+    var bestPrices = GlobalResults.getBestPrices();
+    for (var i = 0; i < GlobalCards.length; ++i)
     {
-        try
+        if (!bestPrices.has(i))
         {
-            //If no results exist
-            if (GlobalQueryResults[i] == undefined || GlobalQueryResults[i].length == 0)
-            {
-                fillCell(i, "bestPrice", "N/A", "stockEmpty");
-                continue;
-            }
-            
-            //Extract data from results
-            var extractedResults = [];
-            for (var j = 0; j < GlobalQueryResults[i].length; ++j)
-            {
-                var store = GlobalQueryResults[i][j][0];
-                var sorted = GlobalQueryResults[i][j][1];
-                var price = sorted[0]['price'];
-                var count = sorted[0]['count'];
-                var name = sorted[0]['name'];
-                extractedResults.push({price, count, name, store});
-            }
-
-            var sortedResults = extractedResults.sort(sortByPrice);
-
-            //If we have a valid result, update the total sum and relevant cells
-            if (sortedResults != undefined && sortedResults.length > 0)
-            {
-                var bestResult = sortedResults[0];
-
-                bestSum += bestResult['price'];
-                var cellClass = bestResult['count'] > 3 ? "stockOk" : (bestResult['count'] > 0 ? "stockLow" : "stockEmpty");
-                var priceHtml = bestResult['price']
-                var store = bestResult['store'];
-                var storeText = store + " (" + bestResult['name'] + ")";
-
-                fillCell(i, "bestPrice", priceHtml, cellClass);
-                fillCell(i, "bestStore", storeText);
-
-                //Add 1 to the specified store counter
-                storeCounts.get(store).count += 1;
-            }
+            Site.fillCell(i, "bestPrice", "N/A", "stockEmpty");
+            continue;
         }
-        catch (e)
-        {
-            fillCell(i, "bestPrice", "FAILED", "stockEmpty");
-            console.error("finalizeTable: " + e.message);
-        }
+
+        var data = bestPrices.get(i);
+        var cellClass = data['count'] > 3 ? "stockOk" : (data['count'] > 0 ? "stockLow" : "stockEmpty");
+        Site.fillCell(i, "bestPrice", data['price'], cellClass);
     }
 
-    //Create sum row
+    //Create sum row if it doesn't yet exist
     if ($("#row_sum").length == 0)
-        createSumRow();
+        Site.createSumRow();
 
-    //Fill sums for stores
+    //Fill store sums
+    var storeSums = GlobalResults.getStoreSums();
     for (var i = 0; i < GlobalStores.length; ++i)
     {
-        var result = GlobalStoreSums.get(GlobalStores[i].name);
-        var cellClass = result.hasAll ? "stockOk" : "stockEmpty";
-        fillCell("sum", GlobalStores[i].sumId, result.sum, cellClass);
+        var store = GlobalStores[i].name;
+        if (!storeSums.has(store))
+        {
+            Site.fillCell("sum", store + "Sum", 0, "stockEmpty");
+            continue;
+        }
+
+        //TODO style
+        Site.fillCell("sum", store + "Sum", storeSums.get(store));
     }
 
     //Fill best sum
-    fillCell("sum", "bestSum", bestSum);
+    Site.fillCell("sum", "bestSum", GlobalResults.getBestSum());
 
     //Fill store stats
-    var storeStats = "";
+    /*var storeStats = "";
     for (var i = 0; i < GlobalStores.length; ++i)
     {
         var store = GlobalStores[i].name;
@@ -546,5 +757,5 @@ function finalizeTable()
         if (i != GlobalStores.length - 1)
             storeStats += ", ";
     }
-    fillCell("sum", "storeStats", storeStats);
+    Site.fillCell("sum", "storeStats", storeStats);*/
 }
