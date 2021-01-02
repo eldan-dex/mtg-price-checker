@@ -266,7 +266,7 @@ class Store
     //Executes upon an AJAX request failing
     ajaxFail(rowId)
     {
-        Results.addFail(rowId, this.name, "FAILED");
+        GlobalResults.addFail(rowId, this.name, "FAILED");
         this.completeRequest();
     }
 
