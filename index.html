@@ -1,7 +1,7 @@
 <html>
     <head>
         <meta charset="UTF-8">
-        <title>Magič Price Checker</title>
+        <title>MTG Price Checker</title>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
         <script src="mtg.js"></script>
         <script src="ga.js"></script>
@@ -68,12 +68,12 @@
             .button {
                 margin-top: 5px;
             }
-            #sum_legend {
+            #sum_legend, #ship_legend {
                 display: none;
             }
             .sidebar {
                 height: 20%;
-                width: 45px;
+                width: 50px;
                 position: fixed; /* Fixed Sidebar (stay in place on scroll) */
                 z-index: 1;
                 top: 50px;
@@ -104,7 +104,7 @@
                 border-radius: 16px;
                 border: 2px solid #aaa!important;                
                 height: 200px;
-                width: 300px;
+                width: 600px;
                 position: fixed; /* Fixed Sidebar (stay in place on scroll) */
                 z-index: 10;
                 top: 130px;
@@ -118,27 +118,55 @@
                 margin-top: -10px;
                 text-align: center;
             }
+            .filters {
+                width: 100%;
+            }
         </style>
     </head>
 
-    <body link="#ffa000">
+    <body link="#ffa000" onload="init()">
         <h1 class="center">MTG Price Checker</h1><hr>
 
         <div class="sidebar">
-            <div class="sideButtonLabel">Settings</div>
+            <div class="sideButtonLabel">Nastavení</div>
             <div class="sideButton" onclick="settings()">⚙️</div>
         </div>
 
         <div class="settings" id="settings">
-            <h2>Settings</h2>
-            TODO
+            <h2>Nastavení</h2>
+            <table><tbody>
+                <tr>
+                    <td>Připočítat dopravu: </td>
+                    <td class="center"><input type="checkbox" checked="checked" id="s_shipRytir">Rytíř</td>
+                    <td class="center"><input type="checkbox" checked="checked" id="s_shipNajada">Najáda</td>
+                    <td class="center"><input type="checkbox" checked="checked" id="s_shipLotus">Lotus</td>
+                    <td class="center"><input type="checkbox" checked="checked" id="s_shipRishada">Rishada</td>
+                    <td class="center"><input type="checkbox" checked="checked" id="s_shipMystic">Mystic</td>
+                    <td>Bude u zvolených obchodů počítat s cenou dopravy</td>
+                </tr>
+                <tr>
+                    <td>Výchozí obchod: </td>
+                    <td class="center"><input type="checkbox" id="s_defRytir">Rytíř</td>
+                    <td class="center"><input type="checkbox" id="s_defNajada">Najáda</td>
+                    <td class="center"><input type="checkbox" id="s_defLotus">Lotus</td>
+                    <td class="center"><input type="checkbox" id="s_defRishada">Rishada</td>
+                    <td class="center"><input type="checkbox" id="s_defMystic">Mystic</td>
+                    <td>[Zatím nefunkční] Ceny v ostatních obchodech budou zobrazeny jako odchylky od ceny výchozího</td>
+                </tr>
+                <tr>
+                    <td>Filtry:</td>
+                    <td colspan=5><input class="filters" id="s_filters" value="emblem, oversized, art series"></td>
+                    <td>Karty s těmito slovy nebudou počítány do výsledků</td>
+                </tr>
+            </table></tbody>
+            <div class="center"><button class="button" id="saveSettings" onclick="saveSettings()">Uložit nastavení</button></div>
         </div>
 
         <div class="center split left">
             <h2>Seznam karet</h2>
             Jedna karta na řádek, pouze názvy<br>
             <textarea class="list" id="card_list"></textarea><br>
-            <button class="button" id="submit" onclick="checkPrices()">Zjistit ceny</button>
+            <button class="button" id="submitList" onclick="checkPrices()">Zjistit ceny</button>
         </div>
 
         <div class="split right">
@@ -162,16 +190,16 @@
                 </thead>
                 <tbody></tbody>
             </table>
-            <div id="sum_legend">Součty: Všechny karty dostupné = <span class="stockOk">zelená</span>, některé karty nedostupné = <span class="stockLow">oranžová</span>, žádné karty = <span class="stockEmpty">červená</span></div><br>
-            Zpracováno <span id="doneCounter">0/0</span><br><br>
+            <div id="sum_legend"><b>Součty:</b> Všechny karty dostupné = <span class="stockOk">zelená</span>, některé karty nedostupné = <span class="stockLow">oranžová</span>, žádné karty = <span class="stockEmpty">červená</span></div><br>
+            <div id="ship_legend"><b>Poštovné:</b> Rytir 99 (Praha), Najada 69 (Praha), Lotus 69 (Ostrava), Rishada 36/64 (Brno),  Mystic 69 (Kladno)</div><br>
+            Zpracováno <span id="doneCounter">0/0</span><br>
             <button class="button" id="table_force" onclick="finalizeTable()">Vyhodnotit manuálně</button> Tabulka bude automaticky vyhodnocena po načtení všech hodnot. Tlačítko vyhodnotí tabulku předčasně.<br>
             <br>
-            <b>Poštovné:</b> Rytir 99 (Praha), Najada 69 (Praha), Lotus 69 (Ostrava), Rishada 36/64 (Brno),  Mystic 69 (Kladno)
         </div> 
 
         <div class="footer center">
             <hr>
-            v0.8 (c) dex 2020
+            v0.85 (c) dex 2020
         </div>
 
     </body>

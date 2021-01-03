@@ -10,7 +10,13 @@ var GlobalRequestsReceived;
 class Settings
 {
     //List of words which, when appearing in the name of a card we would otherwise accept, make us discard it instead
-    static badWords = ["emblem", "oversized", "art series"];
+    static badWords = [];
+
+    //Stores for which to calculate shipping costs
+    static storesWithShipping = [];
+
+    //Stores marked as default
+    static defaultStores = [];
 }
 
 //Contains utility functions
@@ -629,7 +635,7 @@ class Site
         }
     }
 
-    //Create the last row of the table with sums and display the sum legend
+    //Create the sum row and display the sum legend
     static createSumRow()
     {
         var contents =  "<tr id=\"row_sum\">";
@@ -644,11 +650,27 @@ class Site
         $("#sum_legend").css("display", "block");
     }
 
+    //Create the shipping row and display the shipping legend
+    static createShippingRow()
+    {
+        var contents =  "<tr id=\"row_ship\">";
+            contents += "<td class=\"name\" id=\"sumname\"><b>Doprava</b></td>";
+            
+            GlobalStores.forEach(s => contents += "<td class=\"value\" id=\"" + s.name + "Ship\"></id>");
+
+            contents += "<td class=\"name\" id=\"shipNote\"></id>";
+            contents += "<td class=\"value\" id=\"shipSum\"><b></b></id>";
+            contents += "</tr>";
+        $("#result_table > tbody").append(contents);
+        $("#ship_legend").css("display", "block");
+    }
+
     //Clears the table except for the header
     static clearTable()
     {
         $("#result_table > tbody:last").children().remove();
         $("#sum_legend").css("display", "none");
+        $("#ship_legend").css("display", "none");
     }
 
     //Refreshes the table
@@ -673,6 +695,16 @@ class Site
     }
 }
 
+//Initializes the site
+function init()
+{
+    //Initialize stores
+    GlobalStores = [new Rytir(), new Najada(), new Lotus(), new Rishada(), new Mystic()];
+
+    //Hackish way to consistently save the default settings
+    saveSettings();
+}
+
 //Resets everything and starts the price-checking process
 function checkPrices()
 {
@@ -680,9 +712,8 @@ function checkPrices()
     GlobalRequestsSent = 0;
     GlobalRequestsCompleted = 0;
 
-    //Initialize cards, stores and results
+    //Initialize cards and results
     GlobalCards = Site.getCards();
-    GlobalStores = [new Rytir(), new Najada(), new Lotus(), new Rishada(), new Mystic()];
     GlobalResults = new Results();
 
     //Initialize table
@@ -715,7 +746,10 @@ function finalizeTable()
         Site.fillCell(i, "bestStore", data['store'] + " (" + data['name'] + ")");
     }
 
-    //Create sum row if it doesn't yet exist
+    //Create sum and shipping rows if they don't yet exist
+    if ($("#row_ship").length == 0 && Settings.storesWithShipping.length > 0)
+        Site.createShippingRow();
+
     if ($("#row_sum").length == 0)
         Site.createSumRow();
 
@@ -725,6 +759,15 @@ function finalizeTable()
     for (var i = 0; i < GlobalStores.length; ++i)
     {
         var store = GlobalStores[i].name;
+        var shippingCost = 0;
+        if (Settings.storesWithShipping.includes(store))
+        {
+            shippingCost = GlobalStores[i].shipPrice
+            Site.fillCell("ship", store + "Ship", "+ " + shippingCost);
+        }
+        else
+            Site.fillCell("ship", store + "Ship", "");
+
         if (!storeSums.has(store))
         {
             Site.fillCell("sum", store + "Sum", 0, "stockEmpty", "i");
@@ -732,18 +775,28 @@ function finalizeTable()
         }
 
         var cellClass = storeCardCounts.get(store) == GlobalCards.length ? "stockOk" : (storeCardCounts.get(store) > 0 ? "stockLow" : "stockEmpty");
-        Site.fillCell("sum", store + "Sum", storeSums.get(store), cellClass, "i");
+        Site.fillCell("sum", store + "Sum", storeSums.get(store) + shippingCost, cellClass, "i");
     }
 
     //Fill store stats
     var storeStats = "";
-    for (let [store, count] of GlobalResults.getBestPicksPerStore())
+    var bestPicks = GlobalResults.getBestPicksPerStore();
+    for (let [store, count] of bestPicks)
         storeStats += store + ": " + count + ", ";
     storeStats = storeStats.substr(0, storeStats.length - 2);
     Site.fillCell("sum", "storeStats", storeStats, undefined, "i");
 
-    //Fill best sum
-    Site.fillCell("sum", "bestSum", GlobalResults.getBestSum(), undefined, "b");
+    //Fill best sum plus any shipping
+    var bestSum = GlobalResults.getBestSum();
+    var bestSumWithShipping = bestSum;
+    for (var i = 0; i < GlobalStores.length; ++i)
+    {
+        var store = GlobalStores[i].name;
+        if (bestPicks.has(store) && bestPicks.get(store) > 0)
+            bestSumWithShipping += GlobalStores[i].shipPrice;
+    }
+
+    Site.fillCell("sum", "bestSum", bestSum + " ( " + bestSumWithShipping + " s dopravou)", undefined, "b");
 }
 
 //Display/hide the settings menu
@@ -753,4 +806,31 @@ function settings()
         $("#settings").css("display", "block");
     else
         $("#settings").css("display", "none");
+}
+
+//Apply settings
+function saveSettings()
+{
+    //Reset settings
+    Settings.badWords = [];
+    Settings.storesWithShipping = [];
+    Settings.defaultStores = [];
+
+    for (var i = 0; i < GlobalStores.length; ++i)
+    {
+        var store = GlobalStores[i].name;
+
+        //Get stores with selected shipping costs
+        if ($("#s_ship" + store + ":checked").length != 0)
+            Settings.storesWithShipping.push(store);
+
+        //Get default stores
+        if ($("#s_def" + store + ":checked").length != 0)
+            Settings.defaultStores.push(store);
+    }
+
+    //Save filtered words
+    var bads = $("#s_filters").val().trim().split(",");
+    bads.forEach(x => Settings.badWords.push(x));
+
 }
