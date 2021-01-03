@@ -8,5 +8,5 @@ How it works:
 * Happy shopping!
 
 Notes:
-* Currently only the four major czech MTG card stores are supported (cernyrytir.cz, najada.cz, blacklotus.cz, rishada.cz)
+* Currently only the five major czech MTG card stores are supported (cernyrytir.cz, najada.cz, blacklotus.cz, rishada.cz, mysticshop.cz)
 * Frontend is in czech
