@@ -1,4 +1,4 @@
-//v0.7, (c) dex 2021
+//v0.8, (c) dex 2021
 //This is my first attempt at writing something in JS, so I know this is awful. Hopefully somebody can help me refactor it?
 
 var GlobalCards;
@@ -503,6 +503,51 @@ class Rishada extends Store
     }
 }
 
+//mysticshop.cz store object
+class Mystic extends Store
+{
+    constructor()
+    {
+        super("Mystic", "http://mysticshop.cz/mtgshop.php");
+        super.setQueryInfo("post", this.createQuery, this.parseReply);
+    }
+
+    //Creates the required query for this store
+    createQuery(cardName)
+    {
+        //Automatically ignore cards not in stock: "nozeros"=1
+        return {"set": 0, "language": 0, "name": cardName, "nozeros": 1, "limit": 100, "cmdsearch": "Vyhledej"};
+    }
+
+    //Parse the HTML response from this store into a list of [name, count, price] objects
+    parseReply(html, cardName)
+    {
+        //Rishada structure: [name, count, price] = tbody > trs > tds [1, 7, 8]
+        var tables = $(html).find('tbody');
+        var trs = $(tables[0]).find('tr');
+        if (tables == undefined || trs == undefined || trs.length == 0)
+            return undefined;
+
+        var results = [];
+        for(var i = 0; i < trs.length; ++i)
+        {
+            try
+            {
+                var tds = $(trs[i]).find('td');
+                var name = $(tds[1]).find('a')[0].innerText.trim();
+                var price = parseInt(tds[8].innerText);
+                var count = parseInt(tds[7].innerText.split(',')[0]);
+                results.push({name, count, price});
+            }
+            catch (e)
+            {
+                console.error("parseReply (" + this.name + ", " + cardName + "): " + e.message);
+            }
+        }
+        return results;       
+    }
+}
+
 /////////////////////////////
 //Site-related code
 /////////////////////////////
@@ -612,7 +657,7 @@ function checkPrices()
 
     //Initialize cards, stores and results
     GlobalCards = Site.getCards();
-    GlobalStores = [new Rytir(), new Najada(), new Lotus(), new Rishada()];
+    GlobalStores = [new Rytir(), new Najada(), new Lotus(), new Rishada(), new Mystic()];
     GlobalResults = new Results();
 
     //Initialize table
