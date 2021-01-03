@@ -205,18 +205,43 @@ class Results
         }
         return result;
     }
+
+    //Gets best cards limited to a specific store
+    getCardsByStore(store)
+    {
+        var result = new Map();
+
+        //For each card
+        for (let [key, val] of this.getBestStorePrices())
+        {
+            var filtered = val.filter(function f(x) { return Util.filterStoreName(x, store);});
+            result.set(key, filtered);
+        }
+
+        return result;
+    }
+
+    //Get a specific card from all stores
+    getCardsByCardId(cardId)
+    {
+        var allPrices = this.getBestStorePrices();
+        if (!allPrices.has(cardId))
+            return [];
+        return allPrices.get(cardId);
+    }
 }
 
 //Base class for stores, contains generic logic
 class Store
 {
-    constructor(name, url)
+    constructor(name, url, shipPrice)
     {
         this.name = name;
         this.url = url;
         this.proxy = "https://cors-anywhere.herokuapp.com/";
         this.cellId = name + "Price";
         this.sumId = name + "Sum";
+        this.shipPrice = shipPrice;
     }
 
     //Executes upon an AJAX request succeeding
@@ -316,7 +341,7 @@ class Rytir extends Store
 {
     constructor()
     {
-        super("Rytir", "https://www.cernyrytir.cz/index.php3?akce=3");
+        super("Rytir", "https://www.cernyrytir.cz/index.php3?akce=3", 99);
         super.setQueryInfo("post", this.createQuery, this.parseReply);
     }
 
@@ -361,7 +386,7 @@ class Najada extends Store
 {
     constructor()
     {
-        super("Najada", "https://www.najada.cz/cz/kusovky-mtg/");
+        super("Najada", "https://www.najada.cz/cz/kusovky-mtg/", 69);
         super.setQueryInfo("get", this.createQuery, this.parseReply);
     }
 
@@ -413,7 +438,7 @@ class Lotus extends Store
 {
     constructor()
     {
-        super("Lotus", "http://www.blacklotus.cz/magic-vyhledavani/");
+        super("Lotus", "http://www.blacklotus.cz/magic-vyhledavani/", 69);
         super.setQueryInfo("get", this.createQuery, this.parseReply);
     }
 
@@ -464,7 +489,7 @@ class Rishada extends Store
 {
     constructor()
     {
-        super("Rishada", "http://rishada.cz/hledani");
+        super("Rishada", "http://rishada.cz/hledani", 36);
         super.setQueryInfo("get", this.createQuery, this.parseReply);
     }
 
@@ -508,7 +533,7 @@ class Mystic extends Store
 {
     constructor()
     {
-        super("Mystic", "http://mysticshop.cz/mtgshop.php");
+        super("Mystic", "http://mysticshop.cz/mtgshop.php", 69);
         super.setQueryInfo("post", this.createQuery, this.parseReply);
     }
 
@@ -719,4 +744,13 @@ function finalizeTable()
 
     //Fill best sum
     Site.fillCell("sum", "bestSum", GlobalResults.getBestSum(), undefined, "b");
+}
+
+//Display/hide the settings menu
+function settings()
+{
+    if ($("#settings").css("display") == "none")
+        $("#settings").css("display", "block");
+    else
+        $("#settings").css("display", "none");
 }

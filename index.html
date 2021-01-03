@@ -51,9 +51,7 @@
                 height: 90%;
                 z-index: 1;
                 position: fixed;
-
                 overflow-x: hidden;
-
             }
             .left {
                 width: 30%;
@@ -73,11 +71,68 @@
             #sum_legend {
                 display: none;
             }
+            .sidebar {
+                height: 20%;
+                width: 45px;
+                position: fixed; /* Fixed Sidebar (stay in place on scroll) */
+                z-index: 1;
+                top: 50px;
+                left: 0;
+                background-color: #000;
+                overflow-x: hidden;
+                padding-top: 20px;
+            }
+            .sidebar a {
+                padding: 6px 8px 6px 16px;
+                text-decoration: none;
+                font-size: 25px;
+                color: #818181;
+                display: block;
+            }
+            .sidebar a:hover {
+                color: #f1f1f1;
+            }
+            .sideButton {
+                text-align: center;
+                font-size: 30px;
+                cursor: pointer;
+            }
+            .sideButtonLabel {
+                font-size: 10px;
+            }
+            .settings {
+                border-radius: 16px;
+                border: 2px solid #aaa!important;                
+                height: 200px;
+                width: 300px;
+                position: fixed; /* Fixed Sidebar (stay in place on scroll) */
+                z-index: 10;
+                top: 130px;
+                left: 1px;
+                background-color: rgb(10, 10, 10);
+                overflow-x: hidden;
+                padding-top: 20px;
+                display: none;
+            }
+            .settings h2 {
+                margin-top: -10px;
+                text-align: center;
+            }
         </style>
     </head>
 
     <body link="#ffa000">
         <h1 class="center">MTG Price Checker</h1><hr>
+
+        <div class="sidebar">
+            <div class="sideButtonLabel">Settings</div>
+            <div class="sideButton" onclick="settings()">⚙️</div>
+        </div>
+
+        <div class="settings" id="settings">
+            <h2>Settings</h2>
+            TODO
+        </div>
 
         <div class="center split left">
             <h2>Seznam karet</h2>
@@ -110,7 +165,9 @@
             <div id="sum_legend">Součty: Všechny karty dostupné = <span class="stockOk">zelená</span>, některé karty nedostupné = <span class="stockLow">oranžová</span>, žádné karty = <span class="stockEmpty">červená</span></div><br>
             Zpracováno <span id="doneCounter">0/0</span><br><br>
             <button class="button" id="table_force" onclick="finalizeTable()">Vyhodnotit manuálně</button> Tabulka bude automaticky vyhodnocena po načtení všech hodnot. Tlačítko vyhodnotí tabulku předčasně.<br>
-        </div>
+            <br>
+            <b>Poštovné:</b> Rytir 99 (Praha), Najada 69 (Praha), Lotus 69 (Ostrava), Rishada 36/64 (Brno),  Mystic 69 (Kladno)
+        </div> 
 
         <div class="footer center">
             <hr>
