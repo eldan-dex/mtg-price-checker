@@ -17,6 +17,17 @@ class Settings
 
     //Stores marked as default
     static defaultStores = [];
+
+    //Stores marked as preferred
+    static preferredStores = [];
+
+    //Resets the settings
+    static reset() {
+        this.badWords = [];
+        this.storesWithShipping = [];
+        this.defaultStores = [];
+        this.preferredStores = [];
+    }
 }
 
 //Contains utility functions
@@ -812,9 +823,7 @@ function settings()
 function saveSettings()
 {
     //Reset settings
-    Settings.badWords = [];
-    Settings.storesWithShipping = [];
-    Settings.defaultStores = [];
+    Settings.reset();
 
     for (var i = 0; i < GlobalStores.length; ++i)
     {
@@ -827,6 +836,10 @@ function saveSettings()
         //Get default stores
         if ($("#s_def" + store + ":checked").length != 0)
             Settings.defaultStores.push(store);
+
+        //Get preferred stores
+        if ($("#s_pref" + store + ":checked").length != 0)
+            Settings.preferredStores.push(store);
     }
 
     //Save filtered words
