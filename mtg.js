@@ -803,7 +803,7 @@ function finalizeTable()
     for (var i = 0; i < GlobalStores.length; ++i)
     {
         var store = GlobalStores[i].name;
-        if (bestPicks.has(store) && bestPicks.get(store) > 0)
+        if (bestPicks.has(store) && bestPicks.get(store) > 0 && Settings.storesWithShipping.includes(store))
             bestSumWithShipping += GlobalStores[i].shipPrice;
     }
 
