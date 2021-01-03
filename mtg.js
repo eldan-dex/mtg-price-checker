@@ -796,7 +796,7 @@ function finalizeTable()
             bestSumWithShipping += GlobalStores[i].shipPrice;
     }
 
-    Site.fillCell("sum", "bestSum", bestSum + " ( " + bestSumWithShipping + " s dopravou)", undefined, "b");
+    Site.fillCell("sum", "bestSum", bestSum + " (" + bestSumWithShipping + " s dopravou)", undefined, "b");
 }
 
 //Display/hide the settings menu
