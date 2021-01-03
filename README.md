@@ -10,3 +10,5 @@ How it works:
 Notes:
 * Currently only the five major czech MTG card stores are supported (cernyrytir.cz, najada.cz, blacklotus.cz, rishada.cz, mysticshop.cz)
 * Frontend is in czech
+* Issues in this repo are in czech
+* If you wish to use the site or contribute and prefer english, let me know, this can be arranged
