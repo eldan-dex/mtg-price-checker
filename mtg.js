@@ -2,9 +2,10 @@
 //This is my first attempt at writing something in JS, so I know this is awful. Hopefully somebody can help me refactor it?
 
 var GlobalCards;
+var GlobalStores;
 var GlobalResults;
 var GlobalRequestsSent;
-var GlobalRequestsReceived;
+var GlobalRequestsCompleted;
 
 //Contains all settings
 class Settings
@@ -107,10 +108,10 @@ class Results
         this.resultMap.get(cardId).push(nameStoreCountPrice);
 
         //Add card to store counter
-        if (!this.storeCardCounts.has(nameStoreCountPrice['store']))
-            this.storeCardCounts.set(nameStoreCountPrice['store'], 0);
+        if (!this.storeCardCounts.has(nameStoreCountPrice.store))
+            this.storeCardCounts.set(nameStoreCountPrice.store, 0);
 
-        this.storeCardCounts.set(nameStoreCountPrice['store'], this.storeCardCounts.get(nameStoreCountPrice['store']) + 1);
+        this.storeCardCounts.set(nameStoreCountPrice.store, this.storeCardCounts.get(nameStoreCountPrice.store) + 1);
     }
 
     //Logs that a store failed for a particular card
@@ -166,11 +167,11 @@ class Results
             let storesDone = [];
             for (let j = 0; j < sorted.length; ++j)
             {
-                if (storesDone.includes(sorted[j]['store']))
+                if (storesDone.includes(sorted[j].store))
                     continue;
 
                 result.get(key).push(sorted[j]);
-                storesDone.push(sorted[j]['store']);
+                storesDone.push(sorted[j].store);
             }
         }
 
@@ -182,7 +183,7 @@ class Results
     {
         let result = 0;
         for (let [key, val] of this.getBestPrices())
-            result += val['price'];
+            result += val.price;
         return result;
     }
 
@@ -194,12 +195,12 @@ class Results
         {
             for (let i = 0; i < val.length; ++i)
             {
-                var key = val[i]['store'];
+                var key = val[i].store;
                 if (!result.has(key))
                     result.set(key, 0);
                 
-                if (val[i]['count'] > 0)
-                    result.set(key, result.get(key) + val[i]['price']);
+                if (val[i].count > 0)
+                    result.set(key, result.get(key) + val[i].price);
             }
         }
         return result;
@@ -211,10 +212,10 @@ class Results
         let result = new Map();
         for (let [key, val] of this.getBestPrices())
         {
-            if (!result.has(val['store']))
-                result.set(val['store'], 0);
+            if (!result.has(val.store))
+                result.set(val.store, 0);
 
-            result.set(val['store'], result.get(val['store']) + 1);
+            result.set(val.store, result.get(val.store) + 1);
         }
         return result;
     }
@@ -289,7 +290,7 @@ class Store
             }
             else
                 for (let i = 0; i < filteredStock.length; ++i)
-                        GlobalResults.addResult(rowId, {name: filteredStock[i]['name'], store: this.name, count: filteredStock[i]['count'], price: filteredStock[i]['price']});
+                        GlobalResults.addResult(rowId, {name: filteredStock[i].name, store: this.name, count: filteredStock[i].count, price: filteredStock[i].price});
         }
         catch (e)
         {
@@ -702,8 +703,8 @@ class Site
         {
             for (let i = 0; i < data.length; ++i)
             {
-                let cellClass = data[i]['count'] > 3 ? "stockOk" : (data[i]['count'] > 0 ? "stockLow" : "stockEmpty");
-                this.fillCell(id, data[i]['store'] + "Price", data[i]['price'], cellClass);
+                let cellClass = data[i].count > 3 ? "stockOk" : (data[i].count > 0 ? "stockLow" : "stockEmpty");
+                this.fillCell(id, data[i].store + "Price", data[i].price, cellClass);
             }
         }
 
@@ -711,7 +712,7 @@ class Site
         {
             for (let i = 0; i < data.length; ++i)
             {
-                this.fillCell(id, data[i]['store'] + "Price", data[i]['text'], "stockEmpty");
+                this.fillCell(id, data[i].store + "Price", data[i].text, "stockEmpty");
             }
         }
     }
@@ -763,9 +764,9 @@ function finalizeTable()
         }
 
         let data = bestPrices.get(i);
-        let cellClass = data['count'] > 3 ? "stockOk" : (data['count'] > 0 ? "stockLow" : "stockEmpty");
-        Site.fillCell(i, "bestPrice", data['price'], cellClass);
-        Site.fillCell(i, "bestStore", data['store'] + " (" + data['name'] + ")");
+        let cellClass = data.count > 3 ? "stockOk" : (data.count > 0 ? "stockLow" : "stockEmpty");
+        Site.fillCell(i, "bestPrice", data.price, cellClass);
+        Site.fillCell(i, "bestStore", data.store + " (" + data.name + ")");
     }
 
     //Create sum and shipping rows if they don't yet exist
@@ -784,7 +785,7 @@ function finalizeTable()
         let shippingCost = 0;
         if (Settings.storesWithShipping.includes(store))
         {
-            shippingCost = GlobalStores[i].shipPrice
+            shippingCost = GlobalStores[i].shipPrice;
             Site.fillCell("ship", store + "Ship", "+ " + shippingCost);
         }
         else
