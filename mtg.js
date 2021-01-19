@@ -1,4 +1,4 @@
-//v0.8, (c) dex 2021
+//v0.86, (c) dex 2021
 //This is my first attempt at writing something in JS, so I know this is awful. Hopefully somebody can help me refactor it?
 
 var GlobalCards;
@@ -646,7 +646,8 @@ class Site
     {
         for (let i = 0; i < cards.length; ++i)
         {
-            let contents =  "<tr id=\"row_" + i + "\">";
+            let rowStyle = (i % 2 == 0) ? "even" : "odd";
+            let contents =  "<tr class=\"" + rowStyle + "\" id=\"row_" + i + "\">";
                 contents += "<td  class=\"name\" id=\"cardname\">" + cards[i] + "</td>";
 
                 GlobalStores.forEach(s => contents += "<td class=\"value\" id=\"" + s.name + "Price\"></id>");

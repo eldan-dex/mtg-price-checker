@@ -24,6 +24,12 @@
                 border-collapse: collapse;
                 padding: 5px;
             }
+            .odd {
+                background-color: rgb(20, 20, 20);
+            }
+            .even {
+                background-color: rgb(0, 0, 0);
+            }
             .footer {
                 width: 100%;
                 position: fixed;
@@ -137,11 +143,11 @@
             <table><tbody>
                 <tr>
                     <td>Připočítat dopravu: </td>
-                    <td class="center"><input type="checkbox" checked="checked" id="s_shipRytir">Rytíř</td>
-                    <td class="center"><input type="checkbox" checked="checked" id="s_shipNajada">Najáda</td>
-                    <td class="center"><input type="checkbox" checked="checked" id="s_shipLotus">Lotus</td>
-                    <td class="center"><input type="checkbox" checked="checked" id="s_shipRishada">Rishada</td>
-                    <td class="center"><input type="checkbox" checked="checked" id="s_shipMystic">Mystic</td>
+                    <td class="center"><input type="checkbox" id="s_shipRytir">Rytíř</td>
+                    <td class="center"><input type="checkbox" id="s_shipNajada">Najáda</td>
+                    <td class="center"><input type="checkbox" id="s_shipLotus">Lotus</td>
+                    <td class="center"><input type="checkbox" id="s_shipRishada">Rishada</td>
+                    <td class="center"><input type="checkbox" id="s_shipMystic">Mystic</td>
                     <td>Bude u zvolených obchodů počítat s cenou dopravy</td>
                 </tr>
                 <tr>
@@ -180,7 +186,8 @@
 
         <div class="split right">
             <h2>Tabulka cen</h2>
-            Note: Proxy server je momentálně omezen na 200 požadavků za hodinu od jednoho uživatele<br>
+            Note: Kvůli problémům s proxy serverem mohou být omezeny počty dotazů které lze v hledání odeslat.
+            <!--Můžete si také <a download="mtg_price_checker.html">stáhnout desktopovou verzi stránky</a>, která by měla mít vyšší úspěšnost.<br>-->
             <br>
             Zobrazuje cenu nejlevnější karty která odpovídá zadání, N/A pokud není nalezena nebo není skladem, FAILED pokud hledání selže (např. příliš požadavků)<br>
             Počty skladem: <span class="stockOk">4+ ks</span>, <span class="stockLow">1-3 ks</span>, <span class="stockEmpty">0 ks</span><br>
@@ -208,7 +215,7 @@
 
         <div class="footer center">
             <hr>
-            v0.85 (c) dex 2020
+            v0.86 (c) dex 2021
         </div>
 
     </body>
